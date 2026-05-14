@@ -1,6 +1,15 @@
+const timestamp = () => new Date().toLocaleTimeString('ru-RU', { hour12: false });
+
+const emit = (level, message, meta = {}) => ({
+  level,
+  message,
+  meta,
+  ts: timestamp()
+});
+
 export const logger = {
-  info: (...args) => console.info('[FBInspector]', ...args),
-  success: (...args) => console.log('[FBInspector]', ...args),
-  warning: (...args) => console.warn('[FBInspector]', ...args),
-  error: (...args) => console.error('[FBInspector]', ...args)
+  info: (message, meta) => emit('info', message, meta),
+  success: (message, meta) => emit('success', message, meta),
+  warning: (message, meta) => emit('warning', message, meta),
+  error: (message, meta) => emit('error', message, meta)
 };

@@ -1,22 +1,23 @@
-# Architecture — FBInspector Foundation
+# Architecture — FBInspector Phase 1 (Short Contract)
 
-## Директории
-- `src/FBInspector/index.js` — entrypoint bookmarklet-инстанса.
-- `src/FBInspector/core/*` — ядро (config, api, auth, logger, storage, utils).
-- `src/FBInspector/ui/*` — UI-обвязка (shell, styles, tabs, table).
-- `src/FBInspector/modules/*` — функциональные модули (Phase 2+).
-- `scripts/build-fbinspector.js` — build pipeline.
-- `dist/*` — build artifacts (генерируются автоматически).
+## Scope
+Только foundation-слой: `core/*`, `ui/*`, `index.js`.
+Бизнес-модули (`accounts`, `businesses`, `pages`) не реализуются на этом этапе.
 
-## Принципы
-- Только модульная архитектура.
-- Никаких giant procedural файлов.
-- Читаемый исходник в `src`, артефакты только в `dist`.
-- Инициализация bookmarklet должна быть idempotent и безопасной.
+## Runtime contract
+1. `index.js` делает безопасный remount (destroy предыдущего инстанса).
+2. Root + style монтируются в DOM.
+3. UI shell отображает лог.
+4. `AuthService` получает токен (или пишет явную ошибку).
+5. `API wrapper` выполняет smoke request: `/me?fields=id,name`.
+6. `destroy()` очищает root/style и снимает ссылку на instance.
 
-## Жизненный цикл
-1. Проверка существующего инстанса.
-2. Safe destroy предыдущего инстанса (если есть).
-3. Mount root + styles.
-4. Init UI shell.
-5. Экспорт API инстанса в `window` для повторного запуска.
+## Core contracts
+- `core/auth.js` — token/user/account/dtsg/site getters.
+- `core/api.js` — `get/post/delete/getAllPages/withRetry/normalizeError`.
+- `core/logger.js` — единый формат лог-сообщений для UI.
+- `core/storage.js` — только под UI-state (без токенов).
+
+## Build contract
+Readable source (`src`) → `npm run build:fbinspector` →
+`dist/FBInspector.js` + `dist/FBInspector.bookmarklet.txt`.
