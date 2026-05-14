@@ -506,6 +506,15 @@
       destructive: false,
       enabled: false,
       riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "billing.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0431\u0438\u043B\u043B\u0438\u043D\u0433\u0430",
+      module: "billing",
+      requiresAdAccount: true,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
     }
   ];
   var actionsRegistry = {
@@ -704,20 +713,23 @@
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
     if (registeredActions.length > 0) {
       actionPipeline.run({
-        actionId: "accounts.load_snapshot",
+        actionId: "billing.load_snapshot",
         context: shell.getContext(),
         policy: phase3Policy,
         logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
-        execute: async (action) => {
-          if (action.id !== "accounts.load_snapshot") {
-            return { mode: "dry_run", message: "\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler." };
-          }
-          const rows = await accountsModule.load({ accessToken: token });
-          return {
-            mode: "read_only",
-            loadedItems: rows.length,
-            message: "Safe action \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D \u0432 \u0440\u0435\u0436\u0438\u043C\u0435 read-only."
+        execute: async (action, context) => {
+          const logDebug = (message, meta = {}) => {
+            shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
           };
+          if (action.id === "accounts.load_snapshot") {
+            const rows = await accountsModule.load({ accessToken: token });
+            return { mode: "read_only", loadedItems: rows.length, message: "Accounts snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D." };
+          }
+          if (action.id === "billing.load_snapshot") {
+            const rows = await billingModule.load({ accessToken: token, context, logDebug });
+            return { mode: "read_only", loadedItems: rows.length, message: "Billing snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D." };
+          }
+          return { mode: "dry_run", message: "\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler." };
         }
       }).then((result) => {
         if (!result.ok) {

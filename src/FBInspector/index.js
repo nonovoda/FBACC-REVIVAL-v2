@@ -114,21 +114,26 @@ const createInstance = () => {
 
   if (registeredActions.length > 0) {
     actionPipeline.run({
-      actionId: 'accounts.load_snapshot',
+      actionId: 'billing.load_snapshot',
       context: shell.getContext(),
       policy: phase3Policy,
       logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
-      execute: async (action) => {
-        if (action.id !== 'accounts.load_snapshot') {
-          return { mode: 'dry_run', message: 'Для действия отсутствует execution handler.' };
+      execute: async (action, context) => {
+        const logDebug = (message, meta = {}) => {
+          shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+        };
+
+        if (action.id === 'accounts.load_snapshot') {
+          const rows = await accountsModule.load({ accessToken: token });
+          return { mode: 'read_only', loadedItems: rows.length, message: 'Accounts snapshot загружен.' };
         }
 
-        const rows = await accountsModule.load({ accessToken: token });
-        return {
-          mode: 'read_only',
-          loadedItems: rows.length,
-          message: 'Safe action выполнен в режиме read-only.'
-        };
+        if (action.id === 'billing.load_snapshot') {
+          const rows = await billingModule.load({ accessToken: token, context, logDebug });
+          return { mode: 'read_only', loadedItems: rows.length, message: 'Billing snapshot загружен.' };
+        }
+
+        return { mode: 'dry_run', message: 'Для действия отсутствует execution handler.' };
       }
     }).then((result) => {
       if (!result.ok) {

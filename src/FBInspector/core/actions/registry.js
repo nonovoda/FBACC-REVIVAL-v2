@@ -31,6 +31,15 @@ const registry = [
     destructive: false,
     enabled: false,
     riskLevel: ACTION_RISK_LEVELS.LOW
+  },
+  {
+    id: 'billing.load_snapshot',
+    title: 'Загрузить snapshot биллинга',
+    module: 'billing',
+    requiresAdAccount: true,
+    destructive: false,
+    enabled: true,
+    riskLevel: ACTION_RISK_LEVELS.LOW
   }
 ];
 

@@ -77,3 +77,9 @@
 - Action проходит через pipeline-этапы: `resolve → policy → execution`.
 - Execution для шага 1 только read-only (загрузка snapshot аккаунтов).
 - Destructive actions по-прежнему не включены.
+
+## Phase 3 — шаг 2 реализован
+
+- Добавлен второй safe controlled action: `billing.load_snapshot` (read-only).
+- Action требует выбранный ad account context и проходит через policy-guard.
+- При отсутствии context блокируется как warning-state (без runtime error).
