@@ -4,9 +4,14 @@ const normalizeFundingSource = (item = {}) => ({
   id: item.id ?? null,
   type: item.type ?? null,
   display_string: item.display_string ?? null,
-  is_verified: item.is_verified ?? null,
   billing_status: item.billing_status ?? null
 });
+
+const extractMissingFieldFromError = (error) => {
+  const message = error?.message || '';
+  const match = message.match(/nonexisting field \(([^)]+)\)/i);
+  return match?.[1] ?? null;
+};
 
 export const billingModule = {
   id: 'billing',
@@ -22,13 +27,38 @@ export const billingModule = {
     }
 
     const endpoint = `act_${adAccountId}`;
-    const params = {
-      fields: 'id,name,account_status,funding_source_details{type,display_string,is_verified,billing_status},amount_spent,balance,currency'
-    };
+    const baseFields = 'id,name,account_status,amount_spent,balance,currency';
+    const requestedFundingFields = ['type', 'display_string', 'billing_status'];
+    let activeFundingFields = [...requestedFundingFields];
+
+    const createParams = () => ({
+      fields: `${baseFields},funding_source_details{${activeFundingFields.join(',')}}`
+    });
+
+    let params = createParams();
 
     logDebug('Billing: подготовка запроса', { endpoint, params, context });
 
-    const payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+    let payload;
+    try {
+      payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+    } catch (error) {
+      const missingField = extractMissingFieldFromError(error);
+      if (error?.code === 100 && missingField && activeFundingFields.includes(missingField)) {
+        activeFundingFields = activeFundingFields.filter((field) => field !== missingField);
+        params = createParams();
+        logDebug('Billing: предупреждение', {
+          message: 'Часть полей billing недоступна, выполняю повторный запрос без проблемного поля',
+          unavailableFields: [missingField],
+          errorObject: error,
+          retryParams: params
+        });
+        payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      } else {
+        throw error;
+      }
+    }
+
     const rawFunding = payload?.funding_source_details;
     const rawItems = Array.isArray(rawFunding) ? rawFunding : (rawFunding ? [rawFunding] : []);
     const normalizedItems = rawItems.map((item) => normalizeFundingSource(item));
@@ -39,7 +69,10 @@ export const billingModule = {
         accountId: payload?.id ?? null,
         accountName: payload?.name ?? null,
         hasFundingSourceDetails: Boolean(rawFunding),
-        fundingSourceType: Array.isArray(rawFunding) ? 'array' : typeof rawFunding
+        fundingSourceType: Array.isArray(rawFunding) ? 'array' : typeof rawFunding,
+        requestedFundingFields,
+        activeFundingFields,
+        unavailableFundingFields: requestedFundingFields.filter((field) => !activeFundingFields.includes(field))
       },
       itemsBeforeNormalize: rawItems.length,
       itemsAfterNormalize: normalizedItems.length

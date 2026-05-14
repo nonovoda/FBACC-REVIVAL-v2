@@ -340,9 +340,13 @@
     id: item.id ?? null,
     type: item.type ?? null,
     display_string: item.display_string ?? null,
-    is_verified: item.is_verified ?? null,
     billing_status: item.billing_status ?? null
   });
+  var extractMissingFieldFromError = (error) => {
+    const message = error?.message || "";
+    const match = message.match(/nonexisting field \(([^)]+)\)/i);
+    return match?.[1] ?? null;
+  };
   var billingModule = {
     id: "billing",
     title: "\u0411\u0438\u043B\u043B\u0438\u043D\u0433",
@@ -356,11 +360,33 @@
         };
       }
       const endpoint = `act_${adAccountId}`;
-      const params = {
-        fields: "id,name,account_status,funding_source_details{type,display_string,is_verified,billing_status},amount_spent,balance,currency"
-      };
+      const baseFields = "id,name,account_status,amount_spent,balance,currency";
+      const requestedFundingFields = ["type", "display_string", "billing_status"];
+      let activeFundingFields = [...requestedFundingFields];
+      const createParams = () => ({
+        fields: `${baseFields},funding_source_details{${activeFundingFields.join(",")}}`
+      });
+      let params = createParams();
       logDebug("Billing: \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0441\u0430", { endpoint, params, context });
-      const payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      let payload;
+      try {
+        payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      } catch (error) {
+        const missingField = extractMissingFieldFromError(error);
+        if (error?.code === 100 && missingField && activeFundingFields.includes(missingField)) {
+          activeFundingFields = activeFundingFields.filter((field) => field !== missingField);
+          params = createParams();
+          logDebug("Billing: \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435", {
+            message: "\u0427\u0430\u0441\u0442\u044C \u043F\u043E\u043B\u0435\u0439 billing \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430, \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441 \u0431\u0435\u0437 \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u043D\u043E\u0433\u043E \u043F\u043E\u043B\u044F",
+            unavailableFields: [missingField],
+            errorObject: error,
+            retryParams: params
+          });
+          payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+        } else {
+          throw error;
+        }
+      }
       const rawFunding = payload?.funding_source_details;
       const rawItems = Array.isArray(rawFunding) ? rawFunding : rawFunding ? [rawFunding] : [];
       const normalizedItems = rawItems.map((item) => normalizeFundingSource(item));
@@ -370,7 +396,10 @@
           accountId: payload?.id ?? null,
           accountName: payload?.name ?? null,
           hasFundingSourceDetails: Boolean(rawFunding),
-          fundingSourceType: Array.isArray(rawFunding) ? "array" : typeof rawFunding
+          fundingSourceType: Array.isArray(rawFunding) ? "array" : typeof rawFunding,
+          requestedFundingFields,
+          activeFundingFields,
+          unavailableFundingFields: requestedFundingFields.filter((field) => !activeFundingFields.includes(field))
         },
         itemsBeforeNormalize: rawItems.length,
         itemsAfterNormalize: normalizedItems.length
