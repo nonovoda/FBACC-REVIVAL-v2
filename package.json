@@ -1,0 +1,13 @@
+{
+  "name": "fbacc-revival-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:fbinspector": "node scripts/build-fbinspector.js",
+    "watch:fbinspector": "node scripts/build-fbinspector.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.4"
+  }
+}
