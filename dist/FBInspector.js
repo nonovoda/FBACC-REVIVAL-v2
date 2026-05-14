@@ -711,10 +711,12 @@
     };
     const registeredActions = actionsRegistry.list();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
+    const startupContext = shell.getContext();
+    const startupActionId = startupContext.selectedAdAccountId ? "billing.load_snapshot" : "accounts.load_snapshot";
     if (registeredActions.length > 0) {
       actionPipeline.run({
-        actionId: "billing.load_snapshot",
-        context: shell.getContext(),
+        actionId: startupActionId,
+        context: startupContext,
         policy: phase3Policy,
         logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
         execute: async (action, context) => {

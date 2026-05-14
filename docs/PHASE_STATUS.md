@@ -83,3 +83,10 @@
 - Добавлен второй safe controlled action: `billing.load_snapshot` (read-only).
 - Action требует выбранный ad account context и проходит через policy-guard.
 - При отсутствии context блокируется как warning-state (без runtime error).
+
+## Phase 3 — шаг 3 реализован
+
+- Startup pipeline выбирает safe action по контексту:
+  - если ad account не выбран → `accounts.load_snapshot`;
+  - если ad account выбран → `billing.load_snapshot`.
+- Это убирает лишний startup warning и сохраняет policy-safe поведение.

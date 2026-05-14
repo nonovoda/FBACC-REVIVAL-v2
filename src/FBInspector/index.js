@@ -111,11 +111,13 @@ const createInstance = () => {
   };
   const registeredActions = actionsRegistry.list();
   shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
+  const startupContext = shell.getContext();
+  const startupActionId = startupContext.selectedAdAccountId ? 'billing.load_snapshot' : 'accounts.load_snapshot';
 
   if (registeredActions.length > 0) {
     actionPipeline.run({
-      actionId: 'billing.load_snapshot',
-      context: shell.getContext(),
+      actionId: startupActionId,
+      context: startupContext,
       policy: phase3Policy,
       logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
       execute: async (action, context) => {
