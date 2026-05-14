@@ -473,6 +473,136 @@
     }
   };
 
+  // src/FBInspector/core/actions/registry.js
+  var ACTION_RISK_LEVELS = {
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high"
+  };
+  var registry = [
+    {
+      id: "ads.refresh_snapshot",
+      title: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C snapshot \u043E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u0439",
+      module: "ads",
+      requiresAdAccount: true,
+      destructive: false,
+      enabled: false,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "billing.refresh_snapshot",
+      title: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C snapshot \u0431\u0438\u043B\u043B\u0438\u043D\u0433\u0430",
+      module: "billing",
+      requiresAdAccount: true,
+      destructive: false,
+      enabled: false,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    }
+  ];
+  var actionsRegistry = {
+    list() {
+      return registry.map((action) => ({ ...action }));
+    },
+    getById(actionId) {
+      return registry.find((action) => action.id === actionId) ?? null;
+    }
+  };
+
+  // src/FBInspector/core/actions/policy.js
+  var basePolicy = {
+    phase3ActionsEnabled: false,
+    allowHighRiskActions: false
+  };
+  var buildDenied = (reasonCode, reason) => ({
+    allowed: false,
+    reasonCode,
+    reason
+  });
+  var actionPolicy = {
+    evaluate(action, context = {}, policy = basePolicy) {
+      if (!action) {
+        return buildDenied("ACTION_NOT_FOUND", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u0432 \u0440\u0435\u0435\u0441\u0442\u0440\u0435.");
+      }
+      if (!policy.phase3ActionsEnabled) {
+        return buildDenied("PHASE3_ACTIONS_DISABLED", "Phase 3 actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438.");
+      }
+      if (action.requiresAdAccount && !context.selectedAdAccountId) {
+        return buildDenied("AD_ACCOUNT_REQUIRED", "\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u044B\u0431\u0440\u0430\u0442\u044C ad account \u043F\u0435\u0440\u0435\u0434 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435\u043C \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F.");
+      }
+      if (action.riskLevel === "high" && !policy.allowHighRiskActions) {
+        return buildDenied("HIGH_RISK_BLOCKED", "\u0412\u044B\u0441\u043E\u043A\u043E\u0440\u0438\u0441\u043A\u043E\u0432\u044B\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438.");
+      }
+      return {
+        allowed: true,
+        reasonCode: "ALLOWED",
+        reason: "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439."
+      };
+    }
+  };
+
+  // src/FBInspector/core/actions/audit.js
+  var nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
+  var summarizeContext = (context = {}) => ({
+    selectedAdAccountId: context.selectedAdAccountId || null,
+    selectedBusinessId: context.selectedBusinessId || null
+  });
+  var actionAudit = {
+    createEntry({ stage, actionId, status, context = {}, details = {} }) {
+      return {
+        ts: nowIso(),
+        stage,
+        actionId,
+        status,
+        context: summarizeContext(context),
+        details
+      };
+    }
+  };
+
+  // src/FBInspector/core/actions/pipeline.js
+  var actionPipeline = {
+    async run({ actionId, context = {}, policy, logger: logger2 }) {
+      const action = actionsRegistry.getById(actionId);
+      logger2(actionAudit.createEntry({
+        stage: "resolve",
+        actionId,
+        status: action ? "ok" : "error",
+        context,
+        details: { found: Boolean(action) }
+      }));
+      const decision = actionPolicy.evaluate(action, context, policy);
+      logger2(actionAudit.createEntry({
+        stage: "policy",
+        actionId,
+        status: decision.allowed ? "ok" : "blocked",
+        context,
+        details: decision
+      }));
+      if (!decision.allowed) {
+        return {
+          ok: false,
+          stage: "policy",
+          reasonCode: decision.reasonCode,
+          reason: decision.reason
+        };
+      }
+      logger2(actionAudit.createEntry({
+        stage: "dry_run",
+        actionId,
+        status: "ok",
+        context,
+        details: {
+          message: "Dry-run \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D. \u0420\u0435\u0430\u043B\u044C\u043D\u043E\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u0432 Phase 3 foundation."
+        }
+      }));
+      return {
+        ok: true,
+        stage: "dry_run",
+        message: "Pipeline \u0433\u043E\u0442\u043E\u0432. \u0420\u0435\u0430\u043B\u044C\u043D\u043E\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 \u0431\u0438\u0437\u043D\u0435\u0441-actions \u043D\u0435 \u0432\u043A\u043B\u044E\u0447\u0435\u043D\u043E."
+      };
+    }
+  };
+
   // src/FBInspector/index.js
   var phase2Modules = [
     accountsModule,
@@ -549,6 +679,26 @@
       }
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
+    const phase3Policy = {
+      phase3ActionsEnabled: false,
+      allowHighRiskActions: false
+    };
+    const registeredActions = actionsRegistry.list();
+    shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
+    if (registeredActions.length > 0) {
+      actionPipeline.run({
+        actionId: registeredActions[0].id,
+        context: shell.getContext(),
+        policy: phase3Policy,
+        logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`))
+      }).then((result) => {
+        if (!result.ok) {
+          shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+        } else {
+          shell.appendLog(logger.success(result.message));
+        }
+      });
+    }
     loadModule(shell, phase2Modules[0].id);
     return {
       destroy() {

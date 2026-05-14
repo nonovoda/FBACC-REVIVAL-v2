@@ -47,3 +47,12 @@
 6. **Integration Readiness**
    - Определить точки интеграции с существующими модулями (без включения runtime business-actions).
    - Подготовить phased rollout-план с feature flags.
+
+## Phase 3 foundation progress
+
+- Добавлен каркас Controlled Actions Architecture:
+  - action registry;
+  - policy guard layer;
+  - unified action pipeline (resolve → policy → dry-run);
+  - audit contract для action-событий.
+- Реальные бизнес-actions **не включены**.

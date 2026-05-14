@@ -15,6 +15,8 @@ import { pagesModule } from './modules/pages.js';
 import { billingModule } from './modules/billing.js';
 import { adsModule } from './modules/ads.js';
 import { diagnosticsModule } from './modules/diagnostics.js';
+import { actionsRegistry } from './core/actions/registry.js';
+import { actionPipeline } from './core/actions/pipeline.js';
 
 const phase2Modules = [
   accountsModule,
@@ -102,6 +104,29 @@ const createInstance = () => {
   });
 
   shell.appendLog(logger.info('Shell смонтирован'));
+
+  const phase3Policy = {
+    phase3ActionsEnabled: false,
+    allowHighRiskActions: false
+  };
+  const registeredActions = actionsRegistry.list();
+  shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
+
+  if (registeredActions.length > 0) {
+    actionPipeline.run({
+      actionId: registeredActions[0].id,
+      context: shell.getContext(),
+      policy: phase3Policy,
+      logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`))
+    }).then((result) => {
+      if (!result.ok) {
+        shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+      } else {
+        shell.appendLog(logger.success(result.message));
+      }
+    });
+  }
+
   loadModule(shell, phase2Modules[0].id);
 
   return {
