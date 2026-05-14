@@ -100,3 +100,15 @@
 3. Унифицирован action-result формат:
    - `mode`, `loadedItems`, `durationMs`, `warnings`, `message`.
 4. Обновлён статус фазы с фиксацией batch-подхода 3–4 шага за итерацию.
+
+## Checkpoint (зафиксировано по логам от 2026-05-14)
+
+- Shell инициализируется стабильно.
+- Phase 3 startup action выполняется через pipeline с полным audit trail (`resolve`/`policy`/`execution`).
+- `accounts.load_snapshot` успешно выполняется в read-only режиме.
+- Вкладки `Accounts`, `Businesses`, `Pages`, `Diagnostics` стабильно загружаются.
+- Вкладки `Billing`/`Ads` без ad account показывают корректный warning-state.
+- При выбранном ad account:
+  - `Billing` загружается, fallback по unsupported полю (`billing_status`) отрабатывает штатно;
+  - `Ads` загружается корректно.
+- Критичных ошибок по текущему этапу не выявлено.
