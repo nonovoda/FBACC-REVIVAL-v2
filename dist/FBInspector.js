@@ -234,7 +234,7 @@
   };
 
   // src/FBInspector/ui/shell.js
-  var createShell = ({ root, tabs, onSelect }) => {
+  var createShell = ({ root, tabs, onSelect, initialContext = {} }) => {
     const container = document.createElement("div");
     container.innerHTML = `
     <div style="background:#0f1715;border:1px solid #2b433a;border-radius:14px;padding:14px;min-width:320px;max-width:560px;">
@@ -245,6 +245,16 @@
         </div>
       </div>
       <div data-role="tabs"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
+          ID \u0440\u0435\u043A\u043B\u0430\u043C\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430
+          <input data-role="ad-account-input" placeholder="\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, 123456789" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
+          ID \u0431\u0438\u0437\u043D\u0435\u0441\u0430
+          <input data-role="business-input" placeholder="\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;" />
+        </label>
+      </div>
       <div data-role="table"></div>
       <div style="margin-top:10px;font-size:12px;color:#c7e0d2;">\u041B\u043E\u0433 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438</div>
       <pre data-role="log" style="margin-top:6px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;min-height:100px;max-height:180px;overflow:auto;font-size:12px;color:#e8fff0;"></pre>
@@ -252,10 +262,14 @@
   `;
     root.appendChild(container);
     const logEl = container.querySelector('[data-role="log"]');
+    const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
+    const businessInput = container.querySelector('[data-role="business-input"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
     const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect });
     const tableUi = createTable({ root: tableRoot });
+    adAccountInput.value = initialContext.selectedAdAccountId || "";
+    businessInput.value = initialContext.selectedBusinessId || "";
     return {
       appendLog(entry) {
         const line = `[${entry.ts}] [${entry.level}] ${entry.message}`;
@@ -265,6 +279,12 @@
       },
       renderRows(rows) {
         tableUi.render(rows);
+      },
+      getContext() {
+        return {
+          selectedAdAccountId: adAccountInput.value.trim(),
+          selectedBusinessId: businessInput.value.trim()
+        };
       },
       destroy() {
         tabsUi.destroy();
@@ -316,20 +336,101 @@
   };
 
   // src/FBInspector/modules/billing.js
+  var normalizeFundingSource = (item = {}) => ({
+    id: item.id ?? null,
+    type: item.type ?? null,
+    display_string: item.display_string ?? null,
+    is_verified: item.is_verified ?? null,
+    billing_status: item.billing_status ?? null
+  });
   var billingModule = {
     id: "billing",
     title: "\u0411\u0438\u043B\u043B\u0438\u043D\u0433",
-    async load() {
-      return [];
+    requiresAccountContext: true,
+    async load({ accessToken, context = {}, logDebug }) {
+      const adAccountId = context.selectedAdAccountId;
+      if (!adAccountId) {
+        throw {
+          code: "BILLING_ACCOUNT_CONTEXT_REQUIRED",
+          message: "\u0414\u043B\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u0411\u0438\u043B\u043B\u0438\u043D\u0433\xBB \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 ad account \u0432 \u043F\u043E\u043B\u0435 \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0430."
+        };
+      }
+      const endpoint = `act_${adAccountId}`;
+      const params = {
+        fields: "id,name,account_status,funding_source_details{type,display_string,is_verified,billing_status},amount_spent,balance,currency"
+      };
+      logDebug("Billing: \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0441\u0430", { endpoint, params, context });
+      const payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      const rawFunding = payload?.funding_source_details;
+      const rawItems = Array.isArray(rawFunding) ? rawFunding : rawFunding ? [rawFunding] : [];
+      const normalizedItems = rawItems.map((item) => normalizeFundingSource(item));
+      logDebug("Billing: \u0441\u0432\u043E\u0434\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 API", {
+        endpoint,
+        rawSummary: {
+          accountId: payload?.id ?? null,
+          accountName: payload?.name ?? null,
+          hasFundingSourceDetails: Boolean(rawFunding),
+          fundingSourceType: Array.isArray(rawFunding) ? "array" : typeof rawFunding
+        },
+        itemsBeforeNormalize: rawItems.length,
+        itemsAfterNormalize: normalizedItems.length
+      });
+      if (!normalizedItems.length) {
+        return [{
+          account_id: payload?.id ?? null,
+          account_name: payload?.name ?? null,
+          billing_status: payload?.account_status ?? null,
+          amount_spent: payload?.amount_spent ?? null,
+          balance: payload?.balance ?? null,
+          currency: payload?.currency ?? null
+        }];
+      }
+      return normalizedItems;
     }
   };
 
   // src/FBInspector/modules/ads.js
+  var normalizeAdsRows = (items = []) => items.map((item) => ({
+    id: item.id ?? null,
+    name: item.name ?? "\u0411\u0435\u0437 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F",
+    status: item.status ?? null,
+    effective_status: item.effective_status ?? null,
+    campaign_id: item.campaign_id ?? null,
+    adset_id: item.adset_id ?? null,
+    creative_id: item.creative?.id ?? null
+  }));
   var adsModule = {
     id: "ads",
     title: "\u041E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u044F",
-    async load() {
-      return [];
+    requiresAccountContext: true,
+    async load({ accessToken, context = {}, logDebug }) {
+      const adAccountId = context.selectedAdAccountId;
+      if (!adAccountId) {
+        throw {
+          code: "ADS_ACCOUNT_CONTEXT_REQUIRED",
+          message: "\u0414\u043B\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u041E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u044F\xBB \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 ad account \u0432 \u043F\u043E\u043B\u0435 \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0430."
+        };
+      }
+      const endpoint = `act_${adAccountId}/ads`;
+      const params = {
+        fields: "id,name,status,effective_status,campaign_id,adset_id,creative{id}",
+        limit: 100
+      };
+      logDebug("Ads: \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0441\u0430", { endpoint, params, context });
+      const payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      const rawItems = Array.isArray(payload?.data) ? payload.data : [];
+      const normalizedItems = normalizeAdsRows(rawItems);
+      logDebug("Ads: \u0441\u0432\u043E\u0434\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 API", {
+        endpoint,
+        rawSummary: {
+          hasDataArray: Array.isArray(payload?.data),
+          dataLength: rawItems.length,
+          pagingNext: Boolean(payload?.paging?.next)
+        },
+        itemsBeforeNormalize: rawItems.length,
+        itemsAfterNormalize: normalizedItems.length
+      });
+      return normalizedItems;
     }
   };
 
@@ -369,6 +470,7 @@
     const style = mountStyles();
     const root = mountRoot();
     const token = authService.getAccessToken();
+    const initialAdAccountId = authService.getCurrentAdAccountId();
     const loadModule = async (shell2, moduleId) => {
       const selectedModule = phase2Modules.find((item) => item.id === moduleId);
       if (!selectedModule) {
@@ -380,20 +482,39 @@
         shell2.renderRows([]);
         return;
       }
+      const context = shell2.getContext();
       shell2.appendLog(logger.info(`\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0438: ${selectedModule.title}`));
+      shell2.appendLog(logger.info(`\u041A\u043E\u043D\u0442\u0435\u043A\u0441\u0442: adAccount=${context.selectedAdAccountId || "\u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D"}, business=${context.selectedBusinessId || "\u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D"}`));
+      if (selectedModule.requiresAccountContext && !context.selectedAdAccountId) {
+        shell2.appendLog(logger.warning("\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u044B\u0431\u0440\u0430\u0442\u044C ad account \u0434\u043B\u044F \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u044D\u0442\u043E\u0439 \u0432\u043A\u043B\u0430\u0434\u043A\u0438."));
+        shell2.renderRows([]);
+        return;
+      }
+      const logDebug = (message, meta = {}) => {
+        shell2.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+      };
       try {
-        const rows = await selectedModule.load({ accessToken: token });
+        const rows = await selectedModule.load({ accessToken: token, context, logDebug });
         shell2.renderRows(rows);
-        shell2.appendLog(logger.success(`\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${rows.length}`));
+        if (!rows.length) {
+          shell2.appendLog(logger.warning("\u0414\u0430\u043D\u043D\u044B\u0435 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B, API \u0432\u0435\u0440\u043D\u0443\u043B \u043F\u0443\u0441\u0442\u043E\u0439 \u0441\u043F\u0438\u0441\u043E\u043A \u0431\u0435\u0437 \u043E\u0448\u0438\u0431\u043A\u0438"));
+        } else {
+          shell2.appendLog(logger.success(`\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${rows.length}`));
+        }
       } catch (error) {
         const normalized = fbApi.normalizeError(error);
         shell2.appendLog(logger.error(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 ${selectedModule.title}: ${normalized.message}`));
+        shell2.appendLog(logger.error(`\u041E\u0431\u044A\u0435\u043A\u0442 \u043E\u0448\u0438\u0431\u043A\u0438: ${JSON.stringify(normalized.raw || error)}`));
         shell2.renderRows([]);
       }
     };
     const shell = createShell({
       root,
       tabs: phase2Modules,
+      initialContext: {
+        selectedAdAccountId: initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, "") : "",
+        selectedBusinessId: ""
+      },
       onSelect: (moduleId) => {
         loadModule(shell, moduleId);
       }

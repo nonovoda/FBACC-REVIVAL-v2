@@ -44,6 +44,7 @@ const createInstance = () => {
   const style = mountStyles();
   const root = mountRoot();
   const token = authService.getAccessToken();
+  const initialAdAccountId = authService.getCurrentAdAccountId();
 
   const loadModule = async (shell, moduleId) => {
     const selectedModule = phase2Modules.find((item) => item.id === moduleId);
@@ -58,14 +59,32 @@ const createInstance = () => {
       return;
     }
 
+    const context = shell.getContext();
     shell.appendLog(logger.info(`Загрузка вкладки: ${selectedModule.title}`));
+    shell.appendLog(logger.info(`Контекст: adAccount=${context.selectedAdAccountId || 'не выбран'}, business=${context.selectedBusinessId || 'не выбран'}`));
+
+    if (selectedModule.requiresAccountContext && !context.selectedAdAccountId) {
+      shell.appendLog(logger.warning('Требуется выбрать ad account для загрузки этой вкладки.'));
+      shell.renderRows([]);
+      return;
+    }
+
+    const logDebug = (message, meta = {}) => {
+      shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+    };
+
     try {
-      const rows = await selectedModule.load({ accessToken: token });
+      const rows = await selectedModule.load({ accessToken: token, context, logDebug });
       shell.renderRows(rows);
-      shell.appendLog(logger.success(`Загружено записей: ${rows.length}`));
+      if (!rows.length) {
+        shell.appendLog(logger.warning('Данные не найдены, API вернул пустой список без ошибки'));
+      } else {
+        shell.appendLog(logger.success(`Загружено записей: ${rows.length}`));
+      }
     } catch (error) {
       const normalized = fbApi.normalizeError(error);
       shell.appendLog(logger.error(`Ошибка загрузки ${selectedModule.title}: ${normalized.message}`));
+      shell.appendLog(logger.error(`Объект ошибки: ${JSON.stringify(normalized.raw || error)}`));
       shell.renderRows([]);
     }
   };
@@ -73,6 +92,10 @@ const createInstance = () => {
   const shell = createShell({
     root,
     tabs: phase2Modules,
+    initialContext: {
+      selectedAdAccountId: initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, '') : '',
+      selectedBusinessId: ''
+    },
     onSelect: (moduleId) => {
       loadModule(shell, moduleId);
     }
