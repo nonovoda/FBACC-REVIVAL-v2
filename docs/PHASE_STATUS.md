@@ -56,3 +56,17 @@
   - unified action pipeline (resolve → policy → dry-run);
   - audit contract для action-событий.
 - Реальные бизнес-actions **не включены**.
+
+## Phase 3 foundation validation (зафиксировано)
+
+- Action registry работает (действия регистрируются и читаются из реестра).
+- Action policy блокирует execution по умолчанию (safe-by-default).
+- Action audit логируется по pipeline-этапам.
+- Вкладки Phase 2 (Accounts/Businesses/Pages/Ads/Billing/Diagnostics) не сломаны текущим foundation-слоем.
+
+## Следующий шаг (короткий план)
+
+1. Включить **первый safe controlled action** через pipeline в режиме read-only.
+2. Сохранить policy guardrails и explicit confirm-подход.
+3. Добавить расширенный audit для этого action (resolve/policy/execution outcome).
+4. Destructive actions не включать.
