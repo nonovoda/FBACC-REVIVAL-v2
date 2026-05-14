@@ -9,6 +9,21 @@ import { logger } from './core/logger.js';
 import { safeRemoveNode } from './core/utils.js';
 import { baseStyles } from './ui/styles.js';
 import { createShell } from './ui/shell.js';
+import { accountsModule } from './modules/accounts.js';
+import { businessesModule } from './modules/businesses.js';
+import { pagesModule } from './modules/pages.js';
+import { billingModule } from './modules/billing.js';
+import { adsModule } from './modules/ads.js';
+import { diagnosticsModule } from './modules/diagnostics.js';
+
+const phase2Modules = [
+  accountsModule,
+  businessesModule,
+  pagesModule,
+  billingModule,
+  adsModule,
+  diagnosticsModule
+];
 
 const mountStyles = () => {
   const style = document.createElement('style');
@@ -25,31 +40,46 @@ const mountRoot = () => {
   return root;
 };
 
-const runSmokeTest = async (shell) => {
-  const token = authService.getAccessToken();
-  if (!token) {
-    shell.appendLog(logger.error('Токен доступа не найден. Проверьте запуск в Ads Manager.'));
-    return;
-  }
-
-  shell.appendLog(logger.info('AuthService: токен получен, запускаю API smoke test /me?fields=id,name'));
-
-  try {
-    const data = await fbApi.get('me', { fields: 'id,name' }, { accessToken: token, retries: 1 });
-    shell.appendLog(logger.success(`Smoke test OK: ${data.name || 'unknown'} (${data.id || 'no-id'})`));
-  } catch (error) {
-    const normalized = fbApi.normalizeError(error);
-    shell.appendLog(logger.error(`Smoke test FAIL: ${normalized.message}`));
-  }
-};
-
 const createInstance = () => {
   const style = mountStyles();
   const root = mountRoot();
-  const shell = createShell({ root });
-  shell.appendLog(logger.info('Shell смонтирован'));
+  const token = authService.getAccessToken();
 
-  runSmokeTest(shell);
+  const loadModule = async (shell, moduleId) => {
+    const selectedModule = phase2Modules.find((item) => item.id === moduleId);
+    if (!selectedModule) {
+      shell.appendLog(logger.warning(`Модуль ${moduleId} не найден`));
+      return;
+    }
+
+    if (!token) {
+      shell.appendLog(logger.error('Токен доступа не найден. Запустите скрипт в Ads Manager.'));
+      shell.renderRows([]);
+      return;
+    }
+
+    shell.appendLog(logger.info(`Загрузка вкладки: ${selectedModule.title}`));
+    try {
+      const rows = await selectedModule.load({ accessToken: token });
+      shell.renderRows(rows);
+      shell.appendLog(logger.success(`Загружено записей: ${rows.length}`));
+    } catch (error) {
+      const normalized = fbApi.normalizeError(error);
+      shell.appendLog(logger.error(`Ошибка загрузки ${selectedModule.title}: ${normalized.message}`));
+      shell.renderRows([]);
+    }
+  };
+
+  const shell = createShell({
+    root,
+    tabs: phase2Modules,
+    onSelect: (moduleId) => {
+      loadModule(shell, moduleId);
+    }
+  });
+
+  shell.appendLog(logger.info('Shell смонтирован'));
+  loadModule(shell, phase2Modules[0].id);
 
   return {
     destroy() {

@@ -171,23 +171,91 @@
   }
 `;
 
+  // src/FBInspector/ui/tabs.js
+  var createTabs = ({ root, tabs, onSelect }) => {
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "flex";
+    wrapper.style.gap = "6px";
+    wrapper.style.marginTop = "10px";
+    wrapper.style.marginBottom = "10px";
+    const buttons = /* @__PURE__ */ new Map();
+    const setActiveTab = (id) => {
+      buttons.forEach((button, tabId) => {
+        button.style.borderColor = tabId === id ? "#4dff8f" : "#2f4a40";
+        button.style.color = tabId === id ? "#4dff8f" : "#c7e0d2";
+      });
+    };
+    tabs.forEach((tab, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = tab.title;
+      button.style.background = "#121f1b";
+      button.style.border = "1px solid #2f4a40";
+      button.style.borderRadius = "8px";
+      button.style.padding = "6px 8px";
+      button.style.fontSize = "12px";
+      button.style.cursor = "pointer";
+      button.onclick = () => {
+        setActiveTab(tab.id);
+        onSelect(tab.id);
+      };
+      buttons.set(tab.id, button);
+      wrapper.appendChild(button);
+      if (index === 0) {
+        setActiveTab(tab.id);
+      }
+    });
+    root.appendChild(wrapper);
+    return { destroy: () => root.removeChild(wrapper), setActiveTab };
+  };
+
+  // src/FBInspector/ui/table.js
+  var createTable = ({ root }) => {
+    const pre = document.createElement("pre");
+    pre.style.marginTop = "8px";
+    pre.style.background = "#0b1210";
+    pre.style.border = "1px solid #22372f";
+    pre.style.borderRadius = "10px";
+    pre.style.padding = "8px";
+    pre.style.minHeight = "120px";
+    pre.style.maxHeight = "240px";
+    pre.style.overflow = "auto";
+    pre.style.fontSize = "12px";
+    pre.style.color = "#e8fff0";
+    root.appendChild(pre);
+    return {
+      render(rows) {
+        pre.textContent = JSON.stringify(rows, null, 2);
+      },
+      destroy() {
+        root.removeChild(pre);
+      }
+    };
+  };
+
   // src/FBInspector/ui/shell.js
-  var createShell = ({ root }) => {
+  var createShell = ({ root, tabs, onSelect }) => {
     const container = document.createElement("div");
     container.innerHTML = `
-    <div style="background:#0f1715;border:1px solid #2b433a;border-radius:14px;padding:14px;min-width:320px;max-width:420px;">
+    <div style="background:#0f1715;border:1px solid #2b433a;border-radius:14px;padding:14px;min-width:320px;max-width:560px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div>
           <div style="font-size:20px;font-weight:800;color:#4dff8f;line-height:1.05;">FBInspector</div>
-          <div style="font-size:11px;color:#99b3a6;">Phase 1 Foundation</div>
+          <div style="font-size:11px;color:#99b3a6;">Phase 2 Read-only Inspector</div>
         </div>
       </div>
+      <div data-role="tabs"></div>
+      <div data-role="table"></div>
       <div style="margin-top:10px;font-size:12px;color:#c7e0d2;">\u041B\u043E\u0433 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438</div>
-      <pre data-role="log" style="margin-top:6px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;min-height:120px;max-height:220px;overflow:auto;font-size:12px;color:#e8fff0;"></pre>
+      <pre data-role="log" style="margin-top:6px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;min-height:100px;max-height:180px;overflow:auto;font-size:12px;color:#e8fff0;"></pre>
     </div>
   `;
     root.appendChild(container);
     const logEl = container.querySelector('[data-role="log"]');
+    const tabsRoot = container.querySelector('[data-role="tabs"]');
+    const tableRoot = container.querySelector('[data-role="table"]');
+    const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect });
+    const tableUi = createTable({ root: tableRoot });
     return {
       appendLog(entry) {
         const line = `[${entry.ts}] [${entry.level}] ${entry.message}`;
@@ -195,7 +263,12 @@
 `;
         logEl.scrollTop = logEl.scrollHeight;
       },
+      renderRows(rows) {
+        tableUi.render(rows);
+      },
       destroy() {
+        tabsUi.destroy();
+        tableUi.destroy();
         if (container.parentNode === root) {
           root.removeChild(container);
         }
@@ -203,7 +276,82 @@
     };
   };
 
+  // src/FBInspector/modules/accounts.js
+  var accountsModule = {
+    id: "accounts",
+    title: "\u0410\u043A\u043A\u0430\u0443\u043D\u0442\u044B",
+    async load({ accessToken }) {
+      const data = await fbApi.get("me/adaccounts", {
+        fields: "id,name,account_status,currency,timezone_name,business",
+        limit: 50
+      }, { accessToken, retries: 1 });
+      return data.data || [];
+    }
+  };
+
+  // src/FBInspector/modules/businesses.js
+  var businessesModule = {
+    id: "businesses",
+    title: "\u0411\u0438\u0437\u043D\u0435\u0441\u044B",
+    async load({ accessToken }) {
+      const data = await fbApi.get("me/businesses", {
+        fields: "id,name,verification_status",
+        limit: 50
+      }, { accessToken, retries: 1 });
+      return data.data || [];
+    }
+  };
+
+  // src/FBInspector/modules/pages.js
+  var pagesModule = {
+    id: "pages",
+    title: "\u0421\u0442\u0440\u0430\u043D\u0438\u0446\u044B",
+    async load({ accessToken }) {
+      const data = await fbApi.get("me/accounts", {
+        fields: "id,name,category",
+        limit: 50
+      }, { accessToken, retries: 1 });
+      return data.data || [];
+    }
+  };
+
+  // src/FBInspector/modules/billing.js
+  var billingModule = {
+    id: "billing",
+    title: "\u0411\u0438\u043B\u043B\u0438\u043D\u0433",
+    async load() {
+      return [];
+    }
+  };
+
+  // src/FBInspector/modules/ads.js
+  var adsModule = {
+    id: "ads",
+    title: "\u041E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u044F",
+    async load() {
+      return [];
+    }
+  };
+
+  // src/FBInspector/modules/diagnostics.js
+  var diagnosticsModule = {
+    id: "diagnostics",
+    title: "\u0414\u0438\u0430\u0433\u043D\u043E\u0441\u0442\u0438\u043A\u0430",
+    async load({ accessToken }) {
+      const me = await fbApi.get("me", { fields: "id,name" }, { accessToken, retries: 1 });
+      return [me];
+    }
+  };
+
   // src/FBInspector/index.js
+  var phase2Modules = [
+    accountsModule,
+    businessesModule,
+    pagesModule,
+    billingModule,
+    adsModule,
+    diagnosticsModule
+  ];
   var mountStyles = () => {
     const style = document.createElement("style");
     style.id = FBINSPECTOR_STYLE_ID;
@@ -217,27 +365,41 @@
     document.body.appendChild(root);
     return root;
   };
-  var runSmokeTest = async (shell) => {
-    const token = authService.getAccessToken();
-    if (!token) {
-      shell.appendLog(logger.error("\u0422\u043E\u043A\u0435\u043D \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0437\u0430\u043F\u0443\u0441\u043A \u0432 Ads Manager."));
-      return;
-    }
-    shell.appendLog(logger.info("AuthService: \u0442\u043E\u043A\u0435\u043D \u043F\u043E\u043B\u0443\u0447\u0435\u043D, \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u044E API smoke test /me?fields=id,name"));
-    try {
-      const data = await fbApi.get("me", { fields: "id,name" }, { accessToken: token, retries: 1 });
-      shell.appendLog(logger.success(`Smoke test OK: ${data.name || "unknown"} (${data.id || "no-id"})`));
-    } catch (error) {
-      const normalized = fbApi.normalizeError(error);
-      shell.appendLog(logger.error(`Smoke test FAIL: ${normalized.message}`));
-    }
-  };
   var createInstance = () => {
     const style = mountStyles();
     const root = mountRoot();
-    const shell = createShell({ root });
+    const token = authService.getAccessToken();
+    const loadModule = async (shell2, moduleId) => {
+      const selectedModule = phase2Modules.find((item) => item.id === moduleId);
+      if (!selectedModule) {
+        shell2.appendLog(logger.warning(`\u041C\u043E\u0434\u0443\u043B\u044C ${moduleId} \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`));
+        return;
+      }
+      if (!token) {
+        shell2.appendLog(logger.error("\u0422\u043E\u043A\u0435\u043D \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D. \u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0441\u043A\u0440\u0438\u043F\u0442 \u0432 Ads Manager."));
+        shell2.renderRows([]);
+        return;
+      }
+      shell2.appendLog(logger.info(`\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0438: ${selectedModule.title}`));
+      try {
+        const rows = await selectedModule.load({ accessToken: token });
+        shell2.renderRows(rows);
+        shell2.appendLog(logger.success(`\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${rows.length}`));
+      } catch (error) {
+        const normalized = fbApi.normalizeError(error);
+        shell2.appendLog(logger.error(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 ${selectedModule.title}: ${normalized.message}`));
+        shell2.renderRows([]);
+      }
+    };
+    const shell = createShell({
+      root,
+      tabs: phase2Modules,
+      onSelect: (moduleId) => {
+        loadModule(shell, moduleId);
+      }
+    });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
-    runSmokeTest(shell);
+    loadModule(shell, phase2Modules[0].id);
     return {
       destroy() {
         shell.appendLog(logger.warning("Destroy \u0432\u044B\u0437\u0432\u0430\u043D, \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E cleanup"));
