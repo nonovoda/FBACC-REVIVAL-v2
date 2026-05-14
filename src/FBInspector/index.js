@@ -106,7 +106,7 @@ const createInstance = () => {
   shell.appendLog(logger.info('Shell смонтирован'));
 
   const phase3Policy = {
-    phase3ActionsEnabled: false,
+    phase3ActionsEnabled: true,
     allowHighRiskActions: false
   };
   const registeredActions = actionsRegistry.list();
@@ -114,10 +114,22 @@ const createInstance = () => {
 
   if (registeredActions.length > 0) {
     actionPipeline.run({
-      actionId: registeredActions[0].id,
+      actionId: 'accounts.load_snapshot',
       context: shell.getContext(),
       policy: phase3Policy,
-      logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`))
+      logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
+      execute: async (action) => {
+        if (action.id !== 'accounts.load_snapshot') {
+          return { mode: 'dry_run', message: 'Для действия отсутствует execution handler.' };
+        }
+
+        const rows = await accountsModule.load({ accessToken: token });
+        return {
+          mode: 'read_only',
+          loadedItems: rows.length,
+          message: 'Safe action выполнен в режиме read-only.'
+        };
+      }
     }).then((result) => {
       if (!result.ok) {
         shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));

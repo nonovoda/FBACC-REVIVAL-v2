@@ -6,6 +6,15 @@ export const ACTION_RISK_LEVELS = {
 
 const registry = [
   {
+    id: 'accounts.load_snapshot',
+    title: 'Загрузить snapshot аккаунтов',
+    module: 'accounts',
+    requiresAdAccount: false,
+    destructive: false,
+    enabled: true,
+    riskLevel: ACTION_RISK_LEVELS.LOW
+  },
+  {
     id: 'ads.refresh_snapshot',
     title: 'Обновить snapshot объявлений',
     module: 'ads',

@@ -70,3 +70,10 @@
 2. Сохранить policy guardrails и explicit confirm-подход.
 3. Добавить расширенный audit для этого action (resolve/policy/execution outcome).
 4. Destructive actions не включать.
+
+## Phase 3 — шаг 1 реализован
+
+- Включен первый safe controlled action: `accounts.load_snapshot`.
+- Action проходит через pipeline-этапы: `resolve → policy → execution`.
+- Execution для шага 1 только read-only (загрузка snapshot аккаунтов).
+- Destructive actions по-прежнему не включены.

@@ -481,6 +481,15 @@
   };
   var registry = [
     {
+      id: "accounts.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432",
+      module: "accounts",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
       id: "ads.refresh_snapshot",
       title: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C snapshot \u043E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u0439",
       module: "ads",
@@ -561,7 +570,7 @@
 
   // src/FBInspector/core/actions/pipeline.js
   var actionPipeline = {
-    async run({ actionId, context = {}, policy, logger: logger2 }) {
+    async run({ actionId, context = {}, policy, logger: logger2, execute }) {
       const action = actionsRegistry.getById(actionId);
       logger2(actionAudit.createEntry({
         stage: "resolve",
@@ -586,19 +595,27 @@
           reason: decision.reason
         };
       }
+      let executionResult = null;
+      if (typeof execute === "function") {
+        executionResult = await execute(action, context);
+      } else {
+        executionResult = {
+          mode: "dry_run",
+          message: "Execution handler \u043D\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D. \u0412\u044B\u043F\u043E\u043B\u043D\u0435\u043D dry-run."
+        };
+      }
       logger2(actionAudit.createEntry({
-        stage: "dry_run",
+        stage: "execution",
         actionId,
         status: "ok",
         context,
-        details: {
-          message: "Dry-run \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D. \u0420\u0435\u0430\u043B\u044C\u043D\u043E\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u0432 Phase 3 foundation."
-        }
+        details: executionResult
       }));
       return {
         ok: true,
-        stage: "dry_run",
-        message: "Pipeline \u0433\u043E\u0442\u043E\u0432. \u0420\u0435\u0430\u043B\u044C\u043D\u043E\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 \u0431\u0438\u0437\u043D\u0435\u0441-actions \u043D\u0435 \u0432\u043A\u043B\u044E\u0447\u0435\u043D\u043E."
+        stage: "execution",
+        message: "Pipeline \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D \u0443\u0441\u043F\u0435\u0448\u043D\u043E.",
+        result: executionResult
       };
     }
   };
@@ -680,17 +697,28 @@
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
     const phase3Policy = {
-      phase3ActionsEnabled: false,
+      phase3ActionsEnabled: true,
       allowHighRiskActions: false
     };
     const registeredActions = actionsRegistry.list();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
     if (registeredActions.length > 0) {
       actionPipeline.run({
-        actionId: registeredActions[0].id,
+        actionId: "accounts.load_snapshot",
         context: shell.getContext(),
         policy: phase3Policy,
-        logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`))
+        logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
+        execute: async (action) => {
+          if (action.id !== "accounts.load_snapshot") {
+            return { mode: "dry_run", message: "\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler." };
+          }
+          const rows = await accountsModule.load({ accessToken: token });
+          return {
+            mode: "read_only",
+            loadedItems: rows.length,
+            message: "Safe action \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D \u0432 \u0440\u0435\u0436\u0438\u043C\u0435 read-only."
+          };
+        }
       }).then((result) => {
         if (!result.ok) {
           shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));

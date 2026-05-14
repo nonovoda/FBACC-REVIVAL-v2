@@ -3,7 +3,7 @@ import { actionPolicy } from './policy.js';
 import { actionAudit } from './audit.js';
 
 export const actionPipeline = {
-  async run({ actionId, context = {}, policy, logger }) {
+  async run({ actionId, context = {}, policy, logger, execute }) {
     const action = actionsRegistry.getById(actionId);
     logger(actionAudit.createEntry({
       stage: 'resolve',
@@ -31,20 +31,29 @@ export const actionPipeline = {
       };
     }
 
+    let executionResult = null;
+    if (typeof execute === 'function') {
+      executionResult = await execute(action, context);
+    } else {
+      executionResult = {
+        mode: 'dry_run',
+        message: 'Execution handler не передан. Выполнен dry-run.'
+      };
+    }
+
     logger(actionAudit.createEntry({
-      stage: 'dry_run',
+      stage: 'execution',
       actionId,
       status: 'ok',
       context,
-      details: {
-        message: 'Dry-run завершён. Реальное выполнение отключено в Phase 3 foundation.'
-      }
+      details: executionResult
     }));
 
     return {
       ok: true,
-      stage: 'dry_run',
-      message: 'Pipeline готов. Реальное выполнение бизнес-actions не включено.'
+      stage: 'execution',
+      message: 'Pipeline завершён успешно.',
+      result: executionResult
     };
   }
 };
