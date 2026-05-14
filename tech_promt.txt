@@ -1,0 +1,237 @@
+Полностью переработать старый скрипт fbacc.js.
+
+Важно:
+не пытаться рефакторить старую архитектуру и не пытаться “оживить” весь legacy-код. Старый скрипт содержит много устаревших, сломанных и потенциально опасных функций.
+
+Задача:
+создать современную lightweight internal utility tool в фирменном стиле FB Bookmarklet Tools, используя только полезное ядро старого fbacc.
+
+==================================================
+НОВОЕ ПОЗИЦИОНИРОВАНИЕ
+==================================================
+
+Новый инструмент должен быть:
+
+FB Account Inspector
+
+Это:
+- utility tool;
+- inspector/dashboard;
+- lightweight operational helper;
+- read-focused internal tool;
+- не destructive multi-tool комбайн.
+
+==================================================
+ГЛАВНЫЙ ПРИНЦИП
+==================================================
+
+Скрипт должен:
+- быстро показывать полезную информацию;
+- помогать диагностировать аккаунты;
+- помогать ориентироваться в структуре BM;
+- помогать быстро копировать данные;
+- помогать быстро переходить в нужные разделы.
+
+Скрипт НЕ должен:
+- выполнять опасные действия;
+- использовать мутные legacy mutations;
+- работать как automation exploit tool;
+- содержать мёртвые функции.
+
+==================================================
+СОХРАНИТЬ И ПЕРЕРАБОТАТЬ
+==================================================
+
+Нужно сохранить и обновить:
+
+1. Загрузка списка ad accounts
+- account id
+- account name
+- status
+- currency
+- timezone
+- spend limit / balance (если доступно)
+
+2. Business Manager информация
+- BM name
+- BM id
+- связь аккаунта с BM
+- статус BM
+
+3. Страницы
+- связанные страницы
+- page id
+- page name
+
+4. Быстрые действия
+- copy account id
+- copy BM id
+- copy page id
+- open account
+- open BM
+- open page
+- open billing
+- open account settings
+
+5. Диагностика
+- disabled / active
+- personal / business owned
+- basic health indicators
+- missing permissions / errors
+
+==================================================
+УДАЛИТЬ ПОЛНОСТЬЮ
+==================================================
+
+Удалить:
+- card/payment methods logic
+- remove/delete account actions
+- remove users
+- destructive actions
+- appeal functions
+- старые GraphQL doc_id mutations
+- PZRD
+- external checks
+- auto update logic
+- FBAcc.io logic
+- всё, что связано с risky automation
+- всё, что не работает стабильно в 2026
+- legacy tab system
+- compressed/minified legacy architecture
+
+==================================================
+АРХИТЕКТУРА
+==================================================
+
+Не использовать:
+- giant procedural file;
+- compressed code;
+- huge global state;
+- legacy spaghetti architecture.
+
+Нужно:
+- modular structure;
+- readable code;
+- clear helpers;
+- clear api layer;
+- reusable UI components;
+- consistent naming.
+
+==================================================
+UI / UX
+==================================================
+
+Использовать текущую дизайн-систему FB Bookmarklet Tools.
+
+Стиль:
+- compact dark utility UI;
+- internal operator tool;
+- minimalistic;
+- utilitarian;
+- no SaaS;
+- no cyberpunk;
+- no giant dashboard.
+
+==================================================
+LAYOUT
+==================================================
+
+Структура:
+
+Hero/Header
+↓
+Toolbar
+↓
+Accounts table/list
+↓
+Details panel
+↓
+Logs / status
+
+==================================================
+ОСНОВНОЙ UX FLOW
+==================================================
+
+1. Открыть tool
+2. Загрузить accounts/BM/pages
+3. Просматривать информацию
+4. Быстро копировать данные
+5. Быстро переходить по ссылкам
+
+==================================================
+ТАБЛИЦА АККАУНТОВ
+==================================================
+
+Для каждого аккаунта:
+
+- name
+- id
+- status
+- BM
+- currency
+- timezone
+- spend limit
+- balance/status
+- quick actions
+
+==================================================
+ПОИСК И ФИЛЬТРАЦИЯ
+==================================================
+
+Добавить:
+- search input
+- filter by status
+- filter by BM
+- quick sorting
+
+==================================================
+QUICK ACTIONS
+==================================================
+
+Кнопки:
+- Copy ID
+- Open Account
+- Open BM
+- Open Billing
+- Open Settings
+
+==================================================
+ЛОГИ
+==================================================
+
+Добавить:
+- compact logs
+- loading states
+- success/error states
+
+==================================================
+ПРОИЗВОДИТЕЛЬНОСТЬ
+==================================================
+
+Важно:
+- sequential loading;
+- safe API pacing;
+- no aggressive parallel spam;
+- avoid rate limits.
+
+==================================================
+BOOKMARKLET
+==================================================
+
+Скрипт должен:
+- работать как bookmarklet;
+- корректно закрываться;
+- не оставлять мусор в DOM;
+- иметь root cleanup;
+- иметь style cleanup;
+- не конфликтовать с другими tools.
+
+==================================================
+ФИНАЛЬНАЯ ЦЕЛЬ
+==================================================
+
+Не “возродить fbacc”.
+
+Нужно создать:
+современный lightweight FB operational inspector,
+использующий только действительно полезные идеи старого fbacc.
