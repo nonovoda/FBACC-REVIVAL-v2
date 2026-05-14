@@ -90,3 +90,13 @@
   - если ad account не выбран → `accounts.load_snapshot`;
   - если ad account выбран → `billing.load_snapshot`.
 - Это убирает лишний startup warning и сохраняет policy-safe поведение.
+
+## Phase 3 — batched rollout (4 шага) реализован
+
+1. Добавлены safe controlled actions:
+   - `businesses.load_snapshot`
+   - `pages.load_snapshot`
+2. Execution handlers расширены для новых action-ов.
+3. Унифицирован action-result формат:
+   - `mode`, `loadedItems`, `durationMs`, `warnings`, `message`.
+4. Обновлён статус фазы с фиксацией batch-подхода 3–4 шага за итерацию.

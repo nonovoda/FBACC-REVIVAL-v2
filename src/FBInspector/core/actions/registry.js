@@ -40,6 +40,24 @@ const registry = [
     destructive: false,
     enabled: true,
     riskLevel: ACTION_RISK_LEVELS.LOW
+  },
+  {
+    id: 'businesses.load_snapshot',
+    title: 'Загрузить snapshot бизнесов',
+    module: 'businesses',
+    requiresAdAccount: false,
+    destructive: false,
+    enabled: true,
+    riskLevel: ACTION_RISK_LEVELS.LOW
+  },
+  {
+    id: 'pages.load_snapshot',
+    title: 'Загрузить snapshot страниц',
+    module: 'pages',
+    requiresAdAccount: false,
+    destructive: false,
+    enabled: true,
+    riskLevel: ACTION_RISK_LEVELS.LOW
   }
 ];
 

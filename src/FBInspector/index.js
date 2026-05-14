@@ -42,6 +42,14 @@ const mountRoot = () => {
   return root;
 };
 
+const buildActionResult = ({ mode = 'read_only', rows = [], warnings = [], message = '', startedAt = 0 }) => ({
+  mode,
+  loadedItems: Array.isArray(rows) ? rows.length : 0,
+  durationMs: startedAt ? Math.max(0, Date.now() - startedAt) : 0,
+  warnings,
+  message
+});
+
 const createInstance = () => {
   const style = mountStyles();
   const root = mountRoot();
@@ -124,18 +132,35 @@ const createInstance = () => {
         const logDebug = (message, meta = {}) => {
           shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
         };
+        const startedAt = Date.now();
 
         if (action.id === 'accounts.load_snapshot') {
           const rows = await accountsModule.load({ accessToken: token });
-          return { mode: 'read_only', loadedItems: rows.length, message: 'Accounts snapshot загружен.' };
+          return buildActionResult({ rows, message: 'Accounts snapshot загружен.', startedAt });
         }
 
         if (action.id === 'billing.load_snapshot') {
           const rows = await billingModule.load({ accessToken: token, context, logDebug });
-          return { mode: 'read_only', loadedItems: rows.length, message: 'Billing snapshot загружен.' };
+          return buildActionResult({ rows, message: 'Billing snapshot загружен.', startedAt });
         }
 
-        return { mode: 'dry_run', message: 'Для действия отсутствует execution handler.' };
+        if (action.id === 'businesses.load_snapshot') {
+          const rows = await businessesModule.load({ accessToken: token });
+          return buildActionResult({ rows, message: 'Businesses snapshot загружен.', startedAt });
+        }
+
+        if (action.id === 'pages.load_snapshot') {
+          const rows = await pagesModule.load({ accessToken: token });
+          return buildActionResult({ rows, message: 'Pages snapshot загружен.', startedAt });
+        }
+
+        return buildActionResult({
+          mode: 'dry_run',
+          rows: [],
+          warnings: ['Для действия отсутствует execution handler.'],
+          message: 'Execution handler не найден.',
+          startedAt
+        });
       }
     }).then((result) => {
       if (!result.ok) {

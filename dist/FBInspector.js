@@ -515,6 +515,24 @@
       destructive: false,
       enabled: true,
       riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "businesses.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0431\u0438\u0437\u043D\u0435\u0441\u043E\u0432",
+      module: "businesses",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "pages.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0441\u0442\u0440\u0430\u043D\u0438\u0446",
+      module: "pages",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
     }
   ];
   var actionsRegistry = {
@@ -651,6 +669,13 @@
     document.body.appendChild(root);
     return root;
   };
+  var buildActionResult = ({ mode = "read_only", rows = [], warnings = [], message = "", startedAt = 0 }) => ({
+    mode,
+    loadedItems: Array.isArray(rows) ? rows.length : 0,
+    durationMs: startedAt ? Math.max(0, Date.now() - startedAt) : 0,
+    warnings,
+    message
+  });
   var createInstance = () => {
     const style = mountStyles();
     const root = mountRoot();
@@ -723,15 +748,30 @@
           const logDebug = (message, meta = {}) => {
             shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
           };
+          const startedAt = Date.now();
           if (action.id === "accounts.load_snapshot") {
             const rows = await accountsModule.load({ accessToken: token });
-            return { mode: "read_only", loadedItems: rows.length, message: "Accounts snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D." };
+            return buildActionResult({ rows, message: "Accounts snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
           }
           if (action.id === "billing.load_snapshot") {
             const rows = await billingModule.load({ accessToken: token, context, logDebug });
-            return { mode: "read_only", loadedItems: rows.length, message: "Billing snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D." };
+            return buildActionResult({ rows, message: "Billing snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
           }
-          return { mode: "dry_run", message: "\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler." };
+          if (action.id === "businesses.load_snapshot") {
+            const rows = await businessesModule.load({ accessToken: token });
+            return buildActionResult({ rows, message: "Businesses snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
+          }
+          if (action.id === "pages.load_snapshot") {
+            const rows = await pagesModule.load({ accessToken: token });
+            return buildActionResult({ rows, message: "Pages snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
+          }
+          return buildActionResult({
+            mode: "dry_run",
+            rows: [],
+            warnings: ["\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler."],
+            message: "Execution handler \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.",
+            startedAt
+          });
         }
       }).then((result) => {
         if (!result.ok) {
