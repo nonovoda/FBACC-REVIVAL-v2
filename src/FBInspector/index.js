@@ -74,6 +74,15 @@ const selectStartupActionId = (context = {}, enabledActions = []) => {
   return enabledActions[0].id;
 };
 
+const getActionMetadata = (action) => ({
+  id: action.id,
+  module: action.module,
+  enabled: action.enabled,
+  requiresAdAccount: action.requiresAdAccount,
+  destructive: action.destructive,
+  riskLevel: action.riskLevel
+});
+
 const createInstance = () => {
   const style = mountStyles();
   const root = mountRoot();
@@ -139,13 +148,21 @@ const createInstance = () => {
 
   const phase3Policy = {
     phase3ActionsEnabled: false,
-    allowHighRiskActions: false
+    allowHighRiskActions: false,
+    allowedActionIds: [
+      'accounts.load_snapshot',
+      'billing.load_snapshot',
+      'businesses.load_snapshot',
+      'pages.load_snapshot',
+      'diagnostics.load_snapshot'
+    ]
   };
   const registeredActions = actionsRegistry.list();
   const enabledActions = actionsRegistry.listEnabled();
   shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: enabled действий ${enabledActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: enabled ads actions ${actionsRegistry.listByModule('ads').filter((item) => item.enabled).length}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
   const startupContext = shell.getContext();
   const startupActionId = selectStartupActionId(startupContext, enabledActions);
 

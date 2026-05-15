@@ -148,3 +148,9 @@
 1. В action registry добавлена выборка `listByModule(moduleId)` для модульной оркестрации действий.
 2. В runtime добавлена карта `actionId -> executor` (modular executors), убрана цепочка множественных `if` для startup execution.
 3. Добавлены служебные phase-метрики в лог startup (`enabled actions` по модулю) для ускоренной диагностики rollout.
+
+## Phase 3 — следующий batch реализован (3 шага)
+
+1. В policy добавлен action allowlist (`allowedActionIds`) для точечного контроля разрешённых действий.
+2. Startup policy переведена на явный allowlist safe read-only actions.
+3. В startup лог добавлен action catalog (метаданные enabled actions) для прозрачной диагностики rollout.

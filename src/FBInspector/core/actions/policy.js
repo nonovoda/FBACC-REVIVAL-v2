@@ -1,6 +1,7 @@
 const basePolicy = {
   phase3ActionsEnabled: false,
-  allowHighRiskActions: false
+  allowHighRiskActions: false,
+  allowedActionIds: []
 };
 
 const buildDenied = (reasonCode, reason) => ({
@@ -17,6 +18,10 @@ export const actionPolicy = {
 
     if (!policy.phase3ActionsEnabled) {
       return buildDenied('PHASE3_ACTIONS_DISABLED', 'Phase 3 actions отключены политикой безопасности.');
+    }
+
+    if (Array.isArray(policy.allowedActionIds) && policy.allowedActionIds.length > 0 && !policy.allowedActionIds.includes(action.id)) {
+      return buildDenied('ACTION_NOT_ALLOWED', 'Действие не входит в allowlist текущей policy-конфигурации.');
     }
 
     if (action.requiresAdAccount && !context.selectedAdAccountId) {

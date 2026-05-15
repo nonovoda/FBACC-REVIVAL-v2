@@ -562,7 +562,8 @@
   // src/FBInspector/core/actions/policy.js
   var basePolicy = {
     phase3ActionsEnabled: false,
-    allowHighRiskActions: false
+    allowHighRiskActions: false,
+    allowedActionIds: []
   };
   var buildDenied = (reasonCode, reason) => ({
     allowed: false,
@@ -576,6 +577,9 @@
       }
       if (!policy.phase3ActionsEnabled) {
         return buildDenied("PHASE3_ACTIONS_DISABLED", "Phase 3 actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438.");
+      }
+      if (Array.isArray(policy.allowedActionIds) && policy.allowedActionIds.length > 0 && !policy.allowedActionIds.includes(action.id)) {
+        return buildDenied("ACTION_NOT_ALLOWED", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 allowlist \u0442\u0435\u043A\u0443\u0449\u0435\u0439 policy-\u043A\u043E\u043D\u0444\u0438\u0433\u0443\u0440\u0430\u0446\u0438\u0438.");
       }
       if (action.requiresAdAccount && !context.selectedAdAccountId) {
         return buildDenied("AD_ACCOUNT_REQUIRED", "\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u044B\u0431\u0440\u0430\u0442\u044C ad account \u043F\u0435\u0440\u0435\u0434 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435\u043C \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F.");
@@ -730,6 +734,14 @@
     }
     return enabledActions[0].id;
   };
+  var getActionMetadata = (action) => ({
+    id: action.id,
+    module: action.module,
+    enabled: action.enabled,
+    requiresAdAccount: action.requiresAdAccount,
+    destructive: action.destructive,
+    riskLevel: action.riskLevel
+  });
   var createInstance = () => {
     const style = mountStyles();
     const root = mountRoot();
@@ -786,13 +798,21 @@
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
     const phase3Policy = {
       phase3ActionsEnabled: false,
-      allowHighRiskActions: false
+      allowHighRiskActions: false,
+      allowedActionIds: [
+        "accounts.load_snapshot",
+        "billing.load_snapshot",
+        "businesses.load_snapshot",
+        "pages.load_snapshot",
+        "diagnostics.load_snapshot"
+      ]
     };
     const registeredActions = actionsRegistry.list();
     const enabledActions = actionsRegistry.listEnabled();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${enabledActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: enabled ads actions ${actionsRegistry.listByModule("ads").filter((item) => item.enabled).length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
     const startupContext = shell.getContext();
     const startupActionId = selectStartupActionId(startupContext, enabledActions);
     if (!phase3Policy.phase3ActionsEnabled) {
