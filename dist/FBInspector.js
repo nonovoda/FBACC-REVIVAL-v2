@@ -533,6 +533,15 @@
       destructive: false,
       enabled: true,
       riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "diagnostics.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0434\u0438\u0430\u0433\u043D\u043E\u0441\u0442\u0438\u043A\u0438",
+      module: "diagnostics",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
     }
   ];
   var actionsRegistry = {
@@ -803,6 +812,10 @@
           if (action.id === "pages.load_snapshot") {
             const rows = await pagesModule.load({ accessToken: token });
             return buildActionResult({ rows, message: "Pages snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
+          }
+          if (action.id === "diagnostics.load_snapshot") {
+            const rows = await diagnosticsModule.load({ accessToken: token });
+            return buildActionResult({ rows, message: "Diagnostics snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
           }
           return buildActionResult({
             mode: "dry_run",

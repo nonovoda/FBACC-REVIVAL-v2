@@ -174,6 +174,11 @@ const createInstance = () => {
           return buildActionResult({ rows, message: 'Pages snapshot загружен.', startedAt });
         }
 
+        if (action.id === 'diagnostics.load_snapshot') {
+          const rows = await diagnosticsModule.load({ accessToken: token });
+          return buildActionResult({ rows, message: 'Diagnostics snapshot загружен.', startedAt });
+        }
+
         return buildActionResult({
           mode: 'dry_run',
           rows: [],

@@ -126,3 +126,19 @@
 - Для read-only / non-destructive action используется auto-confirm (`auto_confirm_read_only`).
 - Для destructive action предусмотрена блокировка с `CONFIRMATION_REQUIRED` до явного подтверждения.
 - Audit trail теперь включает: `resolve` → `policy` → `confirm` → `execution`.
+
+## Checkpoint (зафиксировано по логам от 2026-05-15)
+
+- Критичных ошибок не выявлено.
+- Controlled actions в startup корректно остаются disabled-by-default (warning без runtime error).
+- Вкладки `Accounts/Businesses/Pages/Diagnostics` загружаются стабильно.
+- Вкладки `Billing/Ads` без ad account дают корректный warning-state.
+- При выбранном ad account:
+  - `Ads` загружается корректно;
+  - `Billing` загружается, fallback по unsupported `billing_status` отрабатывает штатно.
+
+## Phase 3 — следующий batch реализован
+
+1. Добавлен safe action `diagnostics.load_snapshot` (read-only, non-destructive).
+2. Execution handler расширен поддержкой `diagnostics.load_snapshot`.
+3. Контракт безопасности unchanged: controlled actions по умолчанию disabled, destructive actions не включены.

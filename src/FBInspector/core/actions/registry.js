@@ -58,6 +58,15 @@ const registry = [
     destructive: false,
     enabled: true,
     riskLevel: ACTION_RISK_LEVELS.LOW
+  },
+  {
+    id: 'diagnostics.load_snapshot',
+    title: 'Загрузить snapshot диагностики',
+    module: 'diagnostics',
+    requiresAdAccount: false,
+    destructive: false,
+    enabled: true,
+    riskLevel: ACTION_RISK_LEVELS.LOW
   }
 ];
 
