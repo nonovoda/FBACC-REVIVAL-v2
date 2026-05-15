@@ -286,6 +286,7 @@
           <select data-role="action-select" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;"></select>
         </label>
         <button data-role="run-action-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C</button>
+        <button data-role="run-all-actions-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C \u0432\u0441\u0435</button>
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c7e0d2;margin-bottom:8px;">
         <input data-role="actions-enabled-toggle" type="checkbox" />
@@ -313,6 +314,7 @@
     const actionStateEl = container.querySelector('[data-role="action-state"]');
     const actionSelectEl = container.querySelector('[data-role="action-select"]');
     const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
+    const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
     const actionsEnabledToggleEl = container.querySelector('[data-role="actions-enabled-toggle"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
@@ -386,11 +388,22 @@
           }
         };
       },
+      setRunAllActionsRunner(handler) {
+        runAllActionBtnEl.onclick = () => {
+          if (typeof handler === "function") {
+            handler();
+          }
+        };
+      },
       setActionRunnerState({ disabled = false, label = "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" } = {}) {
         runActionBtnEl.disabled = disabled;
         runActionBtnEl.textContent = label;
         runActionBtnEl.style.opacity = disabled ? "0.7" : "1";
         runActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
+        runAllActionBtnEl.disabled = disabled;
+        runAllActionBtnEl.textContent = disabled ? "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430..." : "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C \u0432\u0441\u0435";
+        runAllActionBtnEl.style.opacity = disabled ? "0.7" : "1";
+        runAllActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
       },
       setActionsEnabled(value) {
         actionsEnabledToggleEl.checked = Boolean(value);
@@ -1077,6 +1090,18 @@
         shell2.setActionRunnerState({ disabled: false, label: "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" });
       }
     };
+    const executeAllControlledActions = async (shell2, actionIds = []) => {
+      if (!actionIds.length) {
+        shell2.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0434\u043B\u044F batch \u0437\u0430\u043F\u0443\u0441\u043A\u0430."));
+        return;
+      }
+      shell2.appendLog(logger.info(`Batch \u0437\u0430\u043F\u0443\u0441\u043A safe actions: ${actionIds.length}`));
+      for (const actionId of actionIds) {
+        shell2.appendLog(logger.info(`Batch action start: ${actionId}`));
+        await executeControlledAction(shell2, actionId);
+      }
+      shell2.appendLog(logger.success("Batch \u0437\u0430\u043F\u0443\u0441\u043A safe actions \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D."));
+    };
     const shell = createShell({
       root,
       tabs: phase2Modules,
@@ -1137,6 +1162,10 @@
         return;
       }
       executeControlledAction(shell, selectedActionId);
+    });
+    shell.setRunAllActionsRunner(() => {
+      const batchActionIds = enabledActions.filter((item) => !item.destructive).map((item) => item.id);
+      executeAllControlledActions(shell, batchActionIds);
     });
     if (!phase3Policy.phase3ActionsEnabled) {
       shell.appendLog(logger.warning("Controlled actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E. \u0414\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u0435 policy flag phase3ActionsEnabled."));

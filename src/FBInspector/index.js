@@ -212,6 +212,20 @@ const createInstance = () => {
     }
   };
 
+  const executeAllControlledActions = async (shell, actionIds = []) => {
+    if (!actionIds.length) {
+      shell.appendLog(logger.warning('Нет доступных действий для batch запуска.'));
+      return;
+    }
+
+    shell.appendLog(logger.info(`Batch запуск safe actions: ${actionIds.length}`));
+    for (const actionId of actionIds) {
+      shell.appendLog(logger.info(`Batch action start: ${actionId}`));
+      await executeControlledAction(shell, actionId);
+    }
+    shell.appendLog(logger.success('Batch запуск safe actions завершён.'));
+  };
+
   const shell = createShell({
     root,
     tabs: phase2Modules,
@@ -275,6 +289,11 @@ const createInstance = () => {
       return;
     }
     executeControlledAction(shell, selectedActionId);
+  });
+
+  shell.setRunAllActionsRunner(() => {
+    const batchActionIds = enabledActions.filter((item) => !item.destructive).map((item) => item.id);
+    executeAllControlledActions(shell, batchActionIds);
   });
 
   if (!phase3Policy.phase3ActionsEnabled) {

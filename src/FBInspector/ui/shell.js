@@ -19,7 +19,12 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
           <select data-role="action-select" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;"></select>
         </label>
         <button data-role="run-action-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">Запустить</button>
+        <button data-role="run-all-actions-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">Запустить все</button>
       </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c7e0d2;margin-bottom:8px;">
+        <input data-role="actions-enabled-toggle" type="checkbox" />
+        Включить safe actions (только read-only)
+      </label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
           ID рекламного аккаунта
@@ -43,6 +48,8 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   const actionStateEl = container.querySelector('[data-role="action-state"]');
   const actionSelectEl = container.querySelector('[data-role="action-select"]');
   const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
+  const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
+  const actionsEnabledToggleEl = container.querySelector('[data-role="actions-enabled-toggle"]');
   const tabsRoot = container.querySelector('[data-role="tabs"]');
   const tableRoot = container.querySelector('[data-role="table"]');
 
@@ -62,6 +69,18 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
 
   adAccountInput.addEventListener('change', emitContext);
   businessInput.addEventListener('change', emitContext);
+
+  const emitActionsPolicyToggle = () => {
+    if (typeof onContextChange === 'function') {
+      onContextChange({
+        selectedAdAccountId: adAccountInput.value.trim(),
+        selectedBusinessId: businessInput.value.trim(),
+        phase3ActionsEnabled: Boolean(actionsEnabledToggleEl.checked)
+      });
+    }
+  };
+
+  actionsEnabledToggleEl.addEventListener('change', emitActionsPolicyToggle);
 
   return {
     appendLog(entry) {
@@ -108,15 +127,33 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
         }
       };
     },
+    setRunAllActionsRunner(handler) {
+      runAllActionBtnEl.onclick = () => {
+        if (typeof handler === 'function') {
+          handler();
+        }
+      };
+    },
     setActionRunnerState({ disabled = false, label = 'Запустить' } = {}) {
       runActionBtnEl.disabled = disabled;
       runActionBtnEl.textContent = label;
       runActionBtnEl.style.opacity = disabled ? '0.7' : '1';
       runActionBtnEl.style.cursor = disabled ? 'not-allowed' : 'pointer';
+      runAllActionBtnEl.disabled = disabled;
+      runAllActionBtnEl.textContent = disabled ? 'Обработка...' : 'Запустить все';
+      runAllActionBtnEl.style.opacity = disabled ? '0.7' : '1';
+      runAllActionBtnEl.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    },
+    setActionsEnabled(value) {
+      actionsEnabledToggleEl.checked = Boolean(value);
+    },
+    isActionsEnabled() {
+      return Boolean(actionsEnabledToggleEl.checked);
     },
     destroy() {
       adAccountInput.removeEventListener('change', emitContext);
       businessInput.removeEventListener('change', emitContext);
+      actionsEnabledToggleEl.removeEventListener('change', emitActionsPolicyToggle);
       tabsUi.destroy();
       tableUi.destroy();
       if (container.parentNode === root) {

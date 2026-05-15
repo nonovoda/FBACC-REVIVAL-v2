@@ -197,6 +197,12 @@
 2. Состояние переключателя сохраняется между сессиями (`storage: actions_enabled`).
 3. Startup policy summary синхронизирован с реальным состоянием toggle + allowlist safe actions.
 
+## Phase 3 — feature batch реализован (3 шага)
+
+1. В UI добавлен batch-run control `Запустить все` для safe controlled actions.
+2. Реализован последовательный batch flow через pipeline для каждого action (`resolve/policy/precheck/confirm/execution`).
+3. Добавлены прозрачные batch-логи: старт, прогресс по actionId, завершение.
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.
