@@ -178,6 +178,12 @@
 3. Startup лог теперь включает `policy summary` (enabled/high-risk/allowlist-size).
 4. Runtime execution flow в `index.js` упрощён за счёт общего runner, без процедурного дублирования.
 
+## Phase 3 — следующий batch реализован (3 шага)
+
+1. Добавлен UI state-block `Controlled Actions` в shell.
+2. Startup теперь выставляет явный action-state (safe mode / ready / no action).
+3. После pipeline-run UI state синхронизируется с результатом (`success` / `warning`) без необходимости читать весь лог.
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.

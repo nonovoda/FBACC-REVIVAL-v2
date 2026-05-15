@@ -50,3 +50,4 @@
 - Pipeline должен делать precheck `action.enabled` перед execution: disabled action блокируется предсказуемо и логируется отдельной стадией.
 - Для rollout-диагностики держать метрики `enabled/read-only/risk-summary` и capability matrix в актуальном состоянии.
 - Для читаемости и масштабирования использовать общий executor runner (единый контракт ok/rows/warnings) вместо локальных ad-hoc проверок.
+- Оператор должен видеть compact action-state прямо в UI (не только в логе): safe mode / ready / blocked.

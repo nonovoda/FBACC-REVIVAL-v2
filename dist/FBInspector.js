@@ -279,6 +279,7 @@
         </div>
       </div>
       <div data-role="tabs"></div>
+      <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438...</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
           ID \u0440\u0435\u043A\u043B\u0430\u043C\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430
@@ -298,6 +299,7 @@
     const logEl = container.querySelector('[data-role="log"]');
     const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
     const businessInput = container.querySelector('[data-role="business-input"]');
+    const actionStateEl = container.querySelector('[data-role="action-state"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
     const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
@@ -329,6 +331,11 @@
           selectedAdAccountId: adAccountInput.value.trim(),
           selectedBusinessId: businessInput.value.trim()
         };
+      },
+      setActionState(text, tone = "info") {
+        actionStateEl.textContent = text;
+        actionStateEl.style.color = tone === "warning" ? "#ffd27d" : tone === "error" ? "#ff8f8f" : "#c7e0d2";
+        actionStateEl.style.borderColor = tone === "warning" ? "#5a4620" : tone === "error" ? "#5a2020" : "#22372f";
       },
       destroy() {
         adAccountInput.removeEventListener("change", emitContext);
@@ -893,6 +900,24 @@
     destructive: action.destructive,
     riskLevel: action.riskLevel
   });
+  var formatActionStateMessage = ({ policySummary, startupActionId, enabledActions }) => {
+    if (!policySummary.phase3ActionsEnabled) {
+      return {
+        tone: "warning",
+        text: `Controlled Actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B (safe mode). Enabled \u0432 \u0440\u0435\u0435\u0441\u0442\u0440\u0435: ${enabledActions.length}.`
+      };
+    }
+    if (!startupActionId) {
+      return {
+        tone: "warning",
+        text: "Controlled Actions \u0432\u043A\u043B\u044E\u0447\u0435\u043D\u044B, \u043D\u043E \u043D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0433\u043E startup action (\u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 enabled/allowlist)."
+      };
+    }
+    return {
+      tone: "info",
+      text: `Controlled Actions \u0433\u043E\u0442\u043E\u0432\u044B: startup action ${startupActionId}.`
+    };
+  };
   var createInstance = () => {
     const style = mountStyles();
     const root = mountRoot();
@@ -979,6 +1004,9 @@
     shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
     const startupContext = shell.getContext();
     const startupActionId = selectStartupActionId(startupContext, enabledActions);
+    const policySummary = summarizePolicy(phase3Policy);
+    const actionState = formatActionStateMessage({ policySummary, startupActionId, enabledActions });
+    shell.setActionState(actionState.text, actionState.tone);
     if (!phase3Policy.phase3ActionsEnabled) {
       shell.appendLog(logger.warning("Controlled actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E. \u0414\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u0435 policy flag phase3ActionsEnabled."));
     } else if (startupActionId) {
@@ -1014,13 +1042,16 @@
       }).then((result) => {
         if (!result.ok) {
           shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+          shell.setActionState(`Controlled Actions: ${result.reason}`, "warning");
         } else {
           shell.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
           shell.appendLog(logger.success(result.message));
+          shell.setActionState(`Controlled Actions: ${result.message}`, "info");
         }
       });
     } else {
       shell.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 enabled controlled actions \u0434\u043B\u044F startup pipeline."));
+      shell.setActionState("Controlled Actions: \u043D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 startup action.", "warning");
     }
     loadModule(shell, shell.initialTabId || phase2Modules[0].id);
     return {

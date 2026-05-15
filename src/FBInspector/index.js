@@ -83,6 +83,27 @@ const getActionMetadata = (action) => ({
   riskLevel: action.riskLevel
 });
 
+const formatActionStateMessage = ({ policySummary, startupActionId, enabledActions }) => {
+  if (!policySummary.phase3ActionsEnabled) {
+    return {
+      tone: 'warning',
+      text: `Controlled Actions отключены (safe mode). Enabled в реестре: ${enabledActions.length}.`
+    };
+  }
+
+  if (!startupActionId) {
+    return {
+      tone: 'warning',
+      text: 'Controlled Actions включены, но нет доступного startup action (проверьте enabled/allowlist).'
+    };
+  }
+
+  return {
+    tone: 'info',
+    text: `Controlled Actions готовы: startup action ${startupActionId}.`
+  };
+};
+
 const createInstance = () => {
   const style = mountStyles();
   const root = mountRoot();
@@ -178,6 +199,9 @@ const createInstance = () => {
   shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
   const startupContext = shell.getContext();
   const startupActionId = selectStartupActionId(startupContext, enabledActions);
+  const policySummary = summarizePolicy(phase3Policy);
+  const actionState = formatActionStateMessage({ policySummary, startupActionId, enabledActions });
+  shell.setActionState(actionState.text, actionState.tone);
 
   if (!phase3Policy.phase3ActionsEnabled) {
     shell.appendLog(logger.warning('Controlled actions отключены по умолчанию. Для запуска включите policy flag phase3ActionsEnabled.'));
@@ -215,13 +239,16 @@ const createInstance = () => {
     }).then((result) => {
       if (!result.ok) {
         shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+        shell.setActionState(`Controlled Actions: ${result.reason}`, 'warning');
       } else {
         shell.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
         shell.appendLog(logger.success(result.message));
+        shell.setActionState(`Controlled Actions: ${result.message}`, 'info');
       }
     });
   } else {
     shell.appendLog(logger.warning('Нет доступных enabled controlled actions для startup pipeline.'));
+    shell.setActionState('Controlled Actions: нет доступных startup action.', 'warning');
   }
 
   loadModule(shell, shell.initialTabId || phase2Modules[0].id);

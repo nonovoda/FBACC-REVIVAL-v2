@@ -12,6 +12,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
         </div>
       </div>
       <div data-role="tabs"></div>
+      <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: ожидание инициализации...</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
           ID рекламного аккаунта
@@ -32,6 +33,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   const logEl = container.querySelector('[data-role="log"]');
   const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
   const businessInput = container.querySelector('[data-role="business-input"]');
+  const actionStateEl = container.querySelector('[data-role="action-state"]');
   const tabsRoot = container.querySelector('[data-role="tabs"]');
   const tableRoot = container.querySelector('[data-role="table"]');
 
@@ -66,6 +68,11 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
         selectedAdAccountId: adAccountInput.value.trim(),
         selectedBusinessId: businessInput.value.trim()
       };
+    },
+    setActionState(text, tone = 'info') {
+      actionStateEl.textContent = text;
+      actionStateEl.style.color = tone === 'warning' ? '#ffd27d' : tone === 'error' ? '#ff8f8f' : '#c7e0d2';
+      actionStateEl.style.borderColor = tone === 'warning' ? '#5a4620' : tone === 'error' ? '#5a2020' : '#22372f';
     },
     destroy() {
       adAccountInput.removeEventListener('change', emitContext);

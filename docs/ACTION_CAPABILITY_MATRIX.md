@@ -19,3 +19,4 @@
 3. Для destructive action требуется явное подтверждение (confirm stage).
 4. Startup оставляем в режиме disabled-by-default до отдельного включения policy flag.
 5. Для startup-диагностики использовать policy summary (`phase3ActionsEnabled`, `allowHighRiskActions`, `allowlistSize`).
+6. В UI должен отображаться явный state-block Controlled Actions (safe mode / ready / blocked), чтобы оператор видел состояние без чтения полного лога.
