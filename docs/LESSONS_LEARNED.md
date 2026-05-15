@@ -49,3 +49,4 @@
 - Добавлять policy allowlist (`allowedActionIds`) для контролируемого rollout: даже enabled actions не должны выполняться вне явного списка разрешений.
 - Pipeline должен делать precheck `action.enabled` перед execution: disabled action блокируется предсказуемо и логируется отдельной стадией.
 - Для rollout-диагностики держать метрики `enabled/read-only/risk-summary` и capability matrix в актуальном состоянии.
+- Для читаемости и масштабирования использовать общий executor runner (единый контракт ok/rows/warnings) вместо локальных ad-hoc проверок.

@@ -17,7 +17,8 @@ import { adsModule } from './modules/ads.js';
 import { diagnosticsModule } from './modules/diagnostics.js';
 import { actionsRegistry } from './core/actions/registry.js';
 import { actionPipeline } from './core/actions/pipeline.js';
-import { createActionExecutors } from './core/actions/executors.js';
+import { createActionExecutors, runActionExecutor } from './core/actions/executors.js';
+import { summarizePolicy } from './core/actions/policy.js';
 
 const phase2Modules = [
   accountsModule,
@@ -160,6 +161,7 @@ const createInstance = () => {
   shell.appendLog(logger.info(`Phase 3 foundation: read-only enabled действий ${readonlyEnabledActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
   shell.appendLog(logger.info(`Phase 3 foundation: summary by risk ${JSON.stringify(summaryByRisk)}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: policy summary ${JSON.stringify(summarizePolicy(phase3Policy))}`));
   shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
   const startupContext = shell.getContext();
   const startupActionId = selectStartupActionId(startupContext, enabledActions);
@@ -183,17 +185,16 @@ const createInstance = () => {
           context,
           logDebug
         });
-        const executeHandler = actionExecutors[action.id];
-        if (typeof executeHandler === 'function') {
-          const rows = await executeHandler();
+        const execution = await runActionExecutor({ actionId: action.id, executors: actionExecutors });
+        if (execution.ok) {
           const actionTitle = action.title || action.id;
-          return buildActionResult({ rows, message: `${actionTitle} выполнен.`, startedAt });
+          return buildActionResult({ rows: execution.rows, message: `${actionTitle} выполнен.`, startedAt });
         }
 
         return buildActionResult({
           mode: 'dry_run',
-          rows: [],
-          warnings: ['Для действия отсутствует execution handler.'],
+          rows: execution.rows,
+          warnings: execution.warnings,
           message: 'Execution handler не найден.',
           startedAt
         });

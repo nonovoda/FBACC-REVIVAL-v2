@@ -623,6 +623,11 @@
       };
     }
   };
+  var summarizePolicy = (policy = basePolicy) => ({
+    phase3ActionsEnabled: Boolean(policy.phase3ActionsEnabled),
+    allowHighRiskActions: Boolean(policy.allowHighRiskActions),
+    allowlistSize: Array.isArray(policy.allowedActionIds) ? policy.allowedActionIds.length : 0
+  });
 
   // src/FBInspector/core/actions/audit.js
   var nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
@@ -772,6 +777,21 @@
       "diagnostics.load_snapshot": async () => diagnosticsModule2.load({ accessToken })
     };
   };
+  var runActionExecutor = async ({ actionId, executors = {} }) => {
+    const executeHandler = executors[actionId];
+    if (typeof executeHandler !== "function") {
+      return {
+        ok: false,
+        rows: [],
+        warnings: ["\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler."]
+      };
+    }
+    const rows = await executeHandler();
+    return {
+      ok: true,
+      rows: Array.isArray(rows) ? rows : []
+    };
+  };
 
   // src/FBInspector/index.js
   var phase2Modules = [
@@ -897,6 +917,7 @@
     shell.appendLog(logger.info(`Phase 3 foundation: read-only enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${readonlyEnabledActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
     shell.appendLog(logger.info(`Phase 3 foundation: summary by risk ${JSON.stringify(summaryByRisk)}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: policy summary ${JSON.stringify(summarizePolicy(phase3Policy))}`));
     shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
     const startupContext = shell.getContext();
     const startupActionId = selectStartupActionId(startupContext, enabledActions);
@@ -919,16 +940,15 @@
             context,
             logDebug
           });
-          const executeHandler = actionExecutors[action.id];
-          if (typeof executeHandler === "function") {
-            const rows = await executeHandler();
+          const execution = await runActionExecutor({ actionId: action.id, executors: actionExecutors });
+          if (execution.ok) {
             const actionTitle = action.title || action.id;
-            return buildActionResult({ rows, message: `${actionTitle} \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D.`, startedAt });
+            return buildActionResult({ rows: execution.rows, message: `${actionTitle} \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D.`, startedAt });
           }
           return buildActionResult({
             mode: "dry_run",
-            rows: [],
-            warnings: ["\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler."],
+            rows: execution.rows,
+            warnings: execution.warnings,
             message: "Execution handler \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.",
             startedAt
           });

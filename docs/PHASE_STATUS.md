@@ -162,6 +162,13 @@
 3. В registry добавлена сводка `summarizeEnabledByModule()` для phase-диагностики.
 4. Startup лог переведён на summary-by-module вместо точечного счётчика одного модуля.
 
+## Phase 3 — следующий batch реализован (4 шага)
+
+1. Вынесен executor runner `runActionExecutor()` для единообразного исполнения action handlers.
+2. В policy добавлен helper `summarizePolicy()` для прозрачной startup-диагностики.
+3. Startup лог теперь включает `policy summary` (enabled/high-risk/allowlist-size).
+4. Runtime execution flow в `index.js` упрощён за счёт общего runner, без процедурного дублирования.
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.

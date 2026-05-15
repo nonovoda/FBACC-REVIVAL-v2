@@ -15,3 +15,20 @@ export const createActionExecutors = ({ modules, accessToken, context, logDebug 
     'diagnostics.load_snapshot': async () => diagnosticsModule.load({ accessToken })
   };
 };
+
+export const runActionExecutor = async ({ actionId, executors = {} }) => {
+  const executeHandler = executors[actionId];
+  if (typeof executeHandler !== 'function') {
+    return {
+      ok: false,
+      rows: [],
+      warnings: ['Для действия отсутствует execution handler.']
+    };
+  }
+
+  const rows = await executeHandler();
+  return {
+    ok: true,
+    rows: Array.isArray(rows) ? rows : []
+  };
+};

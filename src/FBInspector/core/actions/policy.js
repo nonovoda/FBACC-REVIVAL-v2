@@ -39,3 +39,9 @@ export const actionPolicy = {
     };
   }
 };
+
+export const summarizePolicy = (policy = basePolicy) => ({
+  phase3ActionsEnabled: Boolean(policy.phase3ActionsEnabled),
+  allowHighRiskActions: Boolean(policy.allowHighRiskActions),
+  allowlistSize: Array.isArray(policy.allowedActionIds) ? policy.allowedActionIds.length : 0
+});

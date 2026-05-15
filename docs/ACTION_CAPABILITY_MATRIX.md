@@ -18,3 +18,4 @@
 2. Для action с `requiresAdAccount=true` обязателен selected ad account context.
 3. Для destructive action требуется явное подтверждение (confirm stage).
 4. Startup оставляем в режиме disabled-by-default до отдельного включения policy flag.
+5. Для startup-диагностики использовать policy summary (`phase3ActionsEnabled`, `allowHighRiskActions`, `allowlistSize`).
