@@ -556,6 +556,19 @@
     },
     listByModule(moduleId) {
       return registry.filter((action) => action.module === moduleId).map((action) => ({ ...action }));
+    },
+    summarizeEnabledByModule() {
+      return registry.reduce((acc, action) => {
+        const key = action.module || "unknown";
+        if (!acc[key]) {
+          acc[key] = { total: 0, enabled: 0 };
+        }
+        acc[key].total += 1;
+        if (action.enabled) {
+          acc[key].enabled += 1;
+        }
+        return acc;
+      }, {});
     }
   };
 
@@ -641,6 +654,25 @@
           reason: decision.reason
         };
       }
+      const precheck = {
+        enabled: Boolean(action?.enabled),
+        reason: action?.enabled ? "Action \u043F\u043E\u043C\u0435\u0447\u0435\u043D \u043A\u0430\u043A enabled." : "Action \u043E\u0442\u043A\u043B\u044E\u0447\u0451\u043D \u0432 registry."
+      };
+      logger2(actionAudit.createEntry({
+        stage: "precheck",
+        actionId,
+        status: precheck.enabled ? "ok" : "blocked",
+        context,
+        details: precheck
+      }));
+      if (!precheck.enabled) {
+        return {
+          ok: false,
+          stage: "precheck",
+          reasonCode: "ACTION_DISABLED",
+          reason: "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u0432 registry."
+        };
+      }
       const confirmResult = {
         required: Boolean(action?.destructive),
         confirmed: !action?.destructive,
@@ -686,6 +718,24 @@
     }
   };
 
+  // src/FBInspector/core/actions/executors.js
+  var createActionExecutors = ({ modules, accessToken, context, logDebug }) => {
+    const {
+      accountsModule: accountsModule2,
+      billingModule: billingModule2,
+      businessesModule: businessesModule2,
+      pagesModule: pagesModule2,
+      diagnosticsModule: diagnosticsModule2
+    } = modules;
+    return {
+      "accounts.load_snapshot": async () => accountsModule2.load({ accessToken }),
+      "billing.load_snapshot": async () => billingModule2.load({ accessToken, context, logDebug }),
+      "businesses.load_snapshot": async () => businessesModule2.load({ accessToken }),
+      "pages.load_snapshot": async () => pagesModule2.load({ accessToken }),
+      "diagnostics.load_snapshot": async () => diagnosticsModule2.load({ accessToken })
+    };
+  };
+
   // src/FBInspector/index.js
   var phase2Modules = [
     accountsModule,
@@ -714,13 +764,6 @@
     durationMs: startedAt ? Math.max(0, Date.now() - startedAt) : 0,
     warnings,
     message
-  });
-  var createActionExecutors = ({ accessToken, context, logDebug }) => ({
-    "accounts.load_snapshot": async () => accountsModule.load({ accessToken }),
-    "billing.load_snapshot": async () => billingModule.load({ accessToken, context, logDebug }),
-    "businesses.load_snapshot": async () => businessesModule.load({ accessToken }),
-    "pages.load_snapshot": async () => pagesModule.load({ accessToken }),
-    "diagnostics.load_snapshot": async () => diagnosticsModule.load({ accessToken })
   });
   var selectStartupActionId = (context = {}, enabledActions = []) => {
     if (!Array.isArray(enabledActions) || !enabledActions.length) {
@@ -809,9 +852,10 @@
     };
     const registeredActions = actionsRegistry.list();
     const enabledActions = actionsRegistry.listEnabled();
+    const summaryByModule = actionsRegistry.summarizeEnabledByModule();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${enabledActions.length}`));
-    shell.appendLog(logger.info(`Phase 3 foundation: enabled ads actions ${actionsRegistry.listByModule("ads").filter((item) => item.enabled).length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
     shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
     const startupContext = shell.getContext();
     const startupActionId = selectStartupActionId(startupContext, enabledActions);
@@ -828,7 +872,12 @@
             shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
           };
           const startedAt = Date.now();
-          const actionExecutors = createActionExecutors({ accessToken: token, context, logDebug });
+          const actionExecutors = createActionExecutors({
+            modules: { accountsModule, billingModule, businessesModule, pagesModule, diagnosticsModule },
+            accessToken: token,
+            context,
+            logDebug
+          });
           const executeHandler = actionExecutors[action.id];
           if (typeof executeHandler === "function") {
             const rows = await executeHandler();

@@ -31,6 +31,27 @@ export const actionPipeline = {
       };
     }
 
+    const precheck = {
+      enabled: Boolean(action?.enabled),
+      reason: action?.enabled ? 'Action помечен как enabled.' : 'Action отключён в registry.'
+    };
+    logger(actionAudit.createEntry({
+      stage: 'precheck',
+      actionId,
+      status: precheck.enabled ? 'ok' : 'blocked',
+      context,
+      details: precheck
+    }));
+
+    if (!precheck.enabled) {
+      return {
+        ok: false,
+        stage: 'precheck',
+        reasonCode: 'ACTION_DISABLED',
+        reason: 'Действие отключено в registry.'
+      };
+    }
+
     const confirmResult = {
       required: Boolean(action?.destructive),
       confirmed: !action?.destructive,

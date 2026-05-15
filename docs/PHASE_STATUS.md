@@ -154,3 +154,10 @@
 1. В policy добавлен action allowlist (`allowedActionIds`) для точечного контроля разрешённых действий.
 2. Startup policy переведена на явный allowlist safe read-only actions.
 3. В startup лог добавлен action catalog (метаданные enabled actions) для прозрачной диагностики rollout.
+
+## Phase 3 — batch завершения реализован (4 шага)
+
+1. Добавлен модуль `core/actions/executors.js` (централизация action executors).
+2. В pipeline добавлен `precheck` stage (блокирует execution для disabled actions в registry).
+3. В registry добавлена сводка `summarizeEnabledByModule()` для phase-диагностики.
+4. Startup лог переведён на summary-by-module вместо точечного счётчика одного модуля.

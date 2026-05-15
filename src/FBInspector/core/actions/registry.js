@@ -82,5 +82,18 @@ export const actionsRegistry = {
   },
   listByModule(moduleId) {
     return registry.filter((action) => action.module === moduleId).map((action) => ({ ...action }));
+  },
+  summarizeEnabledByModule() {
+    return registry.reduce((acc, action) => {
+      const key = action.module || 'unknown';
+      if (!acc[key]) {
+        acc[key] = { total: 0, enabled: 0 };
+      }
+      acc[key].total += 1;
+      if (action.enabled) {
+        acc[key].enabled += 1;
+      }
+      return acc;
+    }, {});
   }
 };

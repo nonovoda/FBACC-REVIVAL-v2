@@ -17,6 +17,7 @@ import { adsModule } from './modules/ads.js';
 import { diagnosticsModule } from './modules/diagnostics.js';
 import { actionsRegistry } from './core/actions/registry.js';
 import { actionPipeline } from './core/actions/pipeline.js';
+import { createActionExecutors } from './core/actions/executors.js';
 
 const phase2Modules = [
   accountsModule,
@@ -48,14 +49,6 @@ const buildActionResult = ({ mode = 'read_only', rows = [], warnings = [], messa
   durationMs: startedAt ? Math.max(0, Date.now() - startedAt) : 0,
   warnings,
   message
-});
-
-const createActionExecutors = ({ accessToken, context, logDebug }) => ({
-  'accounts.load_snapshot': async () => accountsModule.load({ accessToken }),
-  'billing.load_snapshot': async () => billingModule.load({ accessToken, context, logDebug }),
-  'businesses.load_snapshot': async () => businessesModule.load({ accessToken }),
-  'pages.load_snapshot': async () => pagesModule.load({ accessToken }),
-  'diagnostics.load_snapshot': async () => diagnosticsModule.load({ accessToken })
 });
 
 const selectStartupActionId = (context = {}, enabledActions = []) => {
@@ -159,9 +152,10 @@ const createInstance = () => {
   };
   const registeredActions = actionsRegistry.list();
   const enabledActions = actionsRegistry.listEnabled();
+  const summaryByModule = actionsRegistry.summarizeEnabledByModule();
   shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: enabled действий ${enabledActions.length}`));
-  shell.appendLog(logger.info(`Phase 3 foundation: enabled ads actions ${actionsRegistry.listByModule('ads').filter((item) => item.enabled).length}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
   shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
   const startupContext = shell.getContext();
   const startupActionId = selectStartupActionId(startupContext, enabledActions);
@@ -179,7 +173,12 @@ const createInstance = () => {
           shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
         };
         const startedAt = Date.now();
-        const actionExecutors = createActionExecutors({ accessToken: token, context, logDebug });
+        const actionExecutors = createActionExecutors({
+          modules: { accountsModule, billingModule, businessesModule, pagesModule, diagnosticsModule },
+          accessToken: token,
+          context,
+          logDebug
+        });
         const executeHandler = actionExecutors[action.id];
         if (typeof executeHandler === 'function') {
           const rows = await executeHandler();
