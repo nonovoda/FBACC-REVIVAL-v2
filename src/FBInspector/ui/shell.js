@@ -35,6 +35,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
           <input data-role="business-input" placeholder="необязательно" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;" />
         </label>
       </div>
+      <button data-role="clear-context-btn" type="button" style="margin-bottom:8px;background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">Сбросить контекст</button>
       <div data-role="table"></div>
       <div style="margin-top:10px;font-size:12px;color:#c7e0d2;">Лог инициализации</div>
       <pre data-role="log" style="margin-top:6px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;min-height:100px;max-height:180px;overflow:auto;font-size:12px;color:#e8fff0;"></pre>
@@ -50,6 +51,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
   const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
   const actionsEnabledToggleEl = container.querySelector('[data-role="actions-enabled-toggle"]');
+  const clearContextBtnEl = container.querySelector('[data-role="clear-context-btn"]');
   const tabsRoot = container.querySelector('[data-role="tabs"]');
   const tableRoot = container.querySelector('[data-role="table"]');
 
@@ -81,6 +83,14 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   };
 
   actionsEnabledToggleEl.addEventListener('change', emitActionsPolicyToggle);
+
+  const clearContext = () => {
+    adAccountInput.value = '';
+    businessInput.value = '';
+    emitContext();
+  };
+
+  clearContextBtnEl.addEventListener('click', clearContext);
 
   return {
     appendLog(entry) {
@@ -135,17 +145,19 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       };
     },
     setActionRunnerState({ disabled = false, label = 'Запустить' } = {}) {
-      runActionBtnEl.disabled = disabled;
+      runActionBtnEl.disabled = disabled || !actionsEnabledToggleEl.checked;
       runActionBtnEl.textContent = label;
       runActionBtnEl.style.opacity = disabled ? '0.7' : '1';
       runActionBtnEl.style.cursor = disabled ? 'not-allowed' : 'pointer';
-      runAllActionBtnEl.disabled = disabled;
+      runAllActionBtnEl.disabled = disabled || !actionsEnabledToggleEl.checked;
       runAllActionBtnEl.textContent = disabled ? 'Обработка...' : 'Запустить все';
       runAllActionBtnEl.style.opacity = disabled ? '0.7' : '1';
       runAllActionBtnEl.style.cursor = disabled ? 'not-allowed' : 'pointer';
     },
     setActionsEnabled(value) {
       actionsEnabledToggleEl.checked = Boolean(value);
+      runActionBtnEl.disabled = !actionsEnabledToggleEl.checked;
+      runAllActionBtnEl.disabled = !actionsEnabledToggleEl.checked;
     },
     isActionsEnabled() {
       return Boolean(actionsEnabledToggleEl.checked);
@@ -154,6 +166,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       adAccountInput.removeEventListener('change', emitContext);
       businessInput.removeEventListener('change', emitContext);
       actionsEnabledToggleEl.removeEventListener('change', emitActionsPolicyToggle);
+      clearContextBtnEl.removeEventListener('click', clearContext);
       tabsUi.destroy();
       tableUi.destroy();
       if (container.parentNode === root) {

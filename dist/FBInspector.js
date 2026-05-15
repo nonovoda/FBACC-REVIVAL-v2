@@ -302,6 +302,7 @@
           <input data-role="business-input" placeholder="\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;" />
         </label>
       </div>
+      <button data-role="clear-context-btn" type="button" style="margin-bottom:8px;background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442</button>
       <div data-role="table"></div>
       <div style="margin-top:10px;font-size:12px;color:#c7e0d2;">\u041B\u043E\u0433 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438</div>
       <pre data-role="log" style="margin-top:6px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;min-height:100px;max-height:180px;overflow:auto;font-size:12px;color:#e8fff0;"></pre>
@@ -316,6 +317,7 @@
     const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
     const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
     const actionsEnabledToggleEl = container.querySelector('[data-role="actions-enabled-toggle"]');
+    const clearContextBtnEl = container.querySelector('[data-role="clear-context-btn"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
     const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
@@ -342,6 +344,12 @@
       }
     };
     actionsEnabledToggleEl.addEventListener("change", emitActionsPolicyToggle);
+    const clearContext = () => {
+      adAccountInput.value = "";
+      businessInput.value = "";
+      emitContext();
+    };
+    clearContextBtnEl.addEventListener("click", clearContext);
     return {
       appendLog(entry) {
         const line = `[${entry.ts}] [${entry.level}] ${entry.message}`;
@@ -396,17 +404,19 @@
         };
       },
       setActionRunnerState({ disabled = false, label = "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" } = {}) {
-        runActionBtnEl.disabled = disabled;
+        runActionBtnEl.disabled = disabled || !actionsEnabledToggleEl.checked;
         runActionBtnEl.textContent = label;
         runActionBtnEl.style.opacity = disabled ? "0.7" : "1";
         runActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
-        runAllActionBtnEl.disabled = disabled;
+        runAllActionBtnEl.disabled = disabled || !actionsEnabledToggleEl.checked;
         runAllActionBtnEl.textContent = disabled ? "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430..." : "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C \u0432\u0441\u0435";
         runAllActionBtnEl.style.opacity = disabled ? "0.7" : "1";
         runAllActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
       },
       setActionsEnabled(value) {
         actionsEnabledToggleEl.checked = Boolean(value);
+        runActionBtnEl.disabled = !actionsEnabledToggleEl.checked;
+        runAllActionBtnEl.disabled = !actionsEnabledToggleEl.checked;
       },
       isActionsEnabled() {
         return Boolean(actionsEnabledToggleEl.checked);
@@ -415,6 +425,7 @@
         adAccountInput.removeEventListener("change", emitContext);
         businessInput.removeEventListener("change", emitContext);
         actionsEnabledToggleEl.removeEventListener("change", emitActionsPolicyToggle);
+        clearContextBtnEl.removeEventListener("click", clearContext);
         tabsUi.destroy();
         tableUi.destroy();
         if (container.parentNode === root) {
@@ -1106,7 +1117,7 @@
       root,
       tabs: phase2Modules,
       initialContext: {
-        selectedAdAccountId: storedContext?.selectedAdAccountId || (initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, "") : ""),
+        selectedAdAccountId: storedContext?.selectedAdAccountId || "",
         selectedBusinessId: storedContext?.selectedBusinessId || ""
       },
       initialTabId: storedTab,
@@ -1125,6 +1136,9 @@
       }
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
+    if (!storedContext?.selectedAdAccountId && initialAdAccountId) {
+      shell.appendLog(logger.info("\u0410\u0432\u0442\u043E\u043F\u043E\u0434\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 ad account \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0430: \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 \u0432\u0440\u0443\u0447\u043D\u0443\u044E \u043F\u0440\u0438 \u043D\u0435\u043E\u0431\u0445\u043E\u0434\u0438\u043C\u043E\u0441\u0442\u0438."));
+    }
     shell.setActionsEnabled(Boolean(storedActionsEnabled));
     const phase3Policy = {
       phase3ActionsEnabled: shell.isActionsEnabled(),

@@ -230,7 +230,7 @@ const createInstance = () => {
     root,
     tabs: phase2Modules,
     initialContext: {
-      selectedAdAccountId: storedContext?.selectedAdAccountId || (initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, '') : ''),
+      selectedAdAccountId: storedContext?.selectedAdAccountId || '',
       selectedBusinessId: storedContext?.selectedBusinessId || ''
     },
     initialTabId: storedTab,
@@ -250,6 +250,9 @@ const createInstance = () => {
   });
 
   shell.appendLog(logger.info('Shell смонтирован'));
+  if (!storedContext?.selectedAdAccountId && initialAdAccountId) {
+    shell.appendLog(logger.info('Автоподстановка ad account отключена: выберите аккаунт вручную при необходимости.'));
+  }
   shell.setActionsEnabled(Boolean(storedActionsEnabled));
 
   const phase3Policy = {

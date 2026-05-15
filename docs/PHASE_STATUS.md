@@ -203,6 +203,13 @@
 2. Реализован последовательный batch flow через pipeline для каждого action (`resolve/policy/precheck/confirm/execution`).
 3. Добавлены прозрачные batch-логи: старт, прогресс по actionId, завершение.
 
+## Phase 3 — feature-fix batch реализован (4 шага)
+
+1. Убрана автоподстановка ad account из auth-context в поле UI по умолчанию.
+2. Добавлена кнопка `Сбросить контекст` для быстрого возврата в neutral state.
+3. Кнопки запуска controlled actions теперь disabled, пока toggle `Включить safe actions` выключен.
+4. Добавлен явный лог о том, что автоподстановка ad account отключена и выбор остаётся ручным.
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.
