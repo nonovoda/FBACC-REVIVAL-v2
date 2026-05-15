@@ -155,6 +155,61 @@ const createInstance = () => {
     }
   };
 
+  const executeControlledAction = async (shell, actionId) => {
+    const phase3Policy = {
+      phase3ActionsEnabled: false,
+      allowHighRiskActions: false,
+      allowedActionIds: [
+        'accounts.load_snapshot',
+        'billing.load_snapshot',
+        'businesses.load_snapshot',
+        'pages.load_snapshot',
+        'diagnostics.load_snapshot'
+      ]
+    };
+
+    const startupContext = shell.getContext();
+    shell.setActionRunnerState({ disabled: true, label: 'Обработка...' });
+
+    try {
+      const result = await actionPipeline.run({
+        actionId,
+        context: startupContext,
+        policy: phase3Policy,
+        logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
+        execute: async (action, context) => {
+          const logDebug = (message, meta = {}) => {
+            shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+          };
+          const startedAt = Date.now();
+          const actionExecutors = createActionExecutors({
+            modules: { accountsModule, billingModule, businessesModule, pagesModule, diagnosticsModule },
+            accessToken: token,
+            context,
+            logDebug
+          });
+          const execution = await runActionExecutor({ actionId: action.id, executors: actionExecutors });
+          if (execution.ok) {
+            const actionTitle = action.title || action.id;
+            return buildActionResult({ rows: execution.rows, message: `${actionTitle} выполнен.`, startedAt });
+          }
+          return buildActionResult({ mode: 'dry_run', rows: execution.rows, warnings: execution.warnings, message: 'Execution handler не найден.', startedAt });
+        }
+      });
+
+      if (!result.ok) {
+        shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+        shell.setActionState(`Controlled Actions: ${result.reason}`, 'warning');
+      } else {
+        shell.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
+        shell.appendLog(logger.success(result.message));
+        shell.setActionState(`Controlled Actions: ${result.message}`, 'info');
+      }
+    } finally {
+      shell.setActionRunnerState({ disabled: false, label: 'Запустить' });
+    }
+  };
+
   const shell = createShell({
     root,
     tabs: phase2Modules,
@@ -174,17 +229,7 @@ const createInstance = () => {
 
   shell.appendLog(logger.info('Shell смонтирован'));
 
-  const phase3Policy = {
-    phase3ActionsEnabled: false,
-    allowHighRiskActions: false,
-    allowedActionIds: [
-      'accounts.load_snapshot',
-      'billing.load_snapshot',
-      'businesses.load_snapshot',
-      'pages.load_snapshot',
-      'diagnostics.load_snapshot'
-    ]
-  };
+  const phase3Policy = { phase3ActionsEnabled: false, allowHighRiskActions: false, allowedActionIds: [] };
   const registeredActions = actionsRegistry.list();
   const enabledActions = actionsRegistry.listEnabled();
   const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();
@@ -202,6 +247,16 @@ const createInstance = () => {
   const policySummary = summarizePolicy(phase3Policy);
   const actionState = formatActionStateMessage({ policySummary, startupActionId, enabledActions });
   shell.setActionState(actionState.text, actionState.tone);
+
+  shell.setActionOptions(enabledActions.map((item) => ({ id: item.id, title: item.title })));
+  shell.setActionRunner(() => {
+    const selectedActionId = shell.getSelectedActionId();
+    if (!selectedActionId) {
+      shell.appendLog(logger.warning('Не выбрано действие для запуска.'));
+      return;
+    }
+    executeControlledAction(shell, selectedActionId);
+  });
 
   if (!phase3Policy.phase3ActionsEnabled) {
     shell.appendLog(logger.warning('Controlled actions отключены по умолчанию. Для запуска включите policy flag phase3ActionsEnabled.'));

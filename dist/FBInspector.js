@@ -280,6 +280,13 @@
       </div>
       <div data-role="tabs"></div>
       <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438...</div>
+      <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
+        <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
+          Safe Action
+          <select data-role="action-select" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;"></select>
+        </label>
+        <button data-role="run-action-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
           ID \u0440\u0435\u043A\u043B\u0430\u043C\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430
@@ -300,6 +307,8 @@
     const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
     const businessInput = container.querySelector('[data-role="business-input"]');
     const actionStateEl = container.querySelector('[data-role="action-state"]');
+    const actionSelectEl = container.querySelector('[data-role="action-select"]');
+    const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
     const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
@@ -336,6 +345,37 @@
         actionStateEl.textContent = text;
         actionStateEl.style.color = tone === "warning" ? "#ffd27d" : tone === "error" ? "#ff8f8f" : "#c7e0d2";
         actionStateEl.style.borderColor = tone === "warning" ? "#5a4620" : tone === "error" ? "#5a2020" : "#22372f";
+      },
+      setActionOptions(options = []) {
+        actionSelectEl.innerHTML = "";
+        options.forEach((option) => {
+          const item = document.createElement("option");
+          item.value = option.id;
+          item.textContent = option.title;
+          actionSelectEl.appendChild(item);
+        });
+        if (!options.length) {
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439";
+          actionSelectEl.appendChild(empty);
+        }
+      },
+      getSelectedActionId() {
+        return actionSelectEl.value;
+      },
+      setActionRunner(handler) {
+        runActionBtnEl.onclick = () => {
+          if (typeof handler === "function") {
+            handler();
+          }
+        };
+      },
+      setActionRunnerState({ disabled = false, label = "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" } = {}) {
+        runActionBtnEl.disabled = disabled;
+        runActionBtnEl.textContent = label;
+        runActionBtnEl.style.opacity = disabled ? "0.7" : "1";
+        runActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
       },
       destroy() {
         adAccountInput.removeEventListener("change", emitContext);
@@ -962,6 +1002,57 @@
         shell2.renderRows([]);
       }
     };
+    const executeControlledAction = async (shell2, actionId) => {
+      const phase3Policy2 = {
+        phase3ActionsEnabled: false,
+        allowHighRiskActions: false,
+        allowedActionIds: [
+          "accounts.load_snapshot",
+          "billing.load_snapshot",
+          "businesses.load_snapshot",
+          "pages.load_snapshot",
+          "diagnostics.load_snapshot"
+        ]
+      };
+      const startupContext2 = shell2.getContext();
+      shell2.setActionRunnerState({ disabled: true, label: "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430..." });
+      try {
+        const result = await actionPipeline.run({
+          actionId,
+          context: startupContext2,
+          policy: phase3Policy2,
+          logger: (auditEntry) => shell2.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
+          execute: async (action, context) => {
+            const logDebug = (message, meta = {}) => {
+              shell2.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+            };
+            const startedAt = Date.now();
+            const actionExecutors = createActionExecutors({
+              modules: { accountsModule, billingModule, businessesModule, pagesModule, diagnosticsModule },
+              accessToken: token,
+              context,
+              logDebug
+            });
+            const execution = await runActionExecutor({ actionId: action.id, executors: actionExecutors });
+            if (execution.ok) {
+              const actionTitle = action.title || action.id;
+              return buildActionResult({ rows: execution.rows, message: `${actionTitle} \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D.`, startedAt });
+            }
+            return buildActionResult({ mode: "dry_run", rows: execution.rows, warnings: execution.warnings, message: "Execution handler \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.", startedAt });
+          }
+        });
+        if (!result.ok) {
+          shell2.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+          shell2.setActionState(`Controlled Actions: ${result.reason}`, "warning");
+        } else {
+          shell2.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
+          shell2.appendLog(logger.success(result.message));
+          shell2.setActionState(`Controlled Actions: ${result.message}`, "info");
+        }
+      } finally {
+        shell2.setActionRunnerState({ disabled: false, label: "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" });
+      }
+    };
     const shell = createShell({
       root,
       tabs: phase2Modules,
@@ -979,17 +1070,7 @@
       }
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
-    const phase3Policy = {
-      phase3ActionsEnabled: false,
-      allowHighRiskActions: false,
-      allowedActionIds: [
-        "accounts.load_snapshot",
-        "billing.load_snapshot",
-        "businesses.load_snapshot",
-        "pages.load_snapshot",
-        "diagnostics.load_snapshot"
-      ]
-    };
+    const phase3Policy = { phase3ActionsEnabled: false, allowHighRiskActions: false, allowedActionIds: [] };
     const registeredActions = actionsRegistry.list();
     const enabledActions = actionsRegistry.listEnabled();
     const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();
@@ -1007,6 +1088,15 @@
     const policySummary = summarizePolicy(phase3Policy);
     const actionState = formatActionStateMessage({ policySummary, startupActionId, enabledActions });
     shell.setActionState(actionState.text, actionState.tone);
+    shell.setActionOptions(enabledActions.map((item) => ({ id: item.id, title: item.title })));
+    shell.setActionRunner(() => {
+      const selectedActionId = shell.getSelectedActionId();
+      if (!selectedActionId) {
+        shell.appendLog(logger.warning("\u041D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430."));
+        return;
+      }
+      executeControlledAction(shell, selectedActionId);
+    });
     if (!phase3Policy.phase3ActionsEnabled) {
       shell.appendLog(logger.warning("Controlled actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E. \u0414\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u0435 policy flag phase3ActionsEnabled."));
     } else if (startupActionId) {

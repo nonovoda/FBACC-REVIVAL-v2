@@ -184,6 +184,13 @@
 2. Startup теперь выставляет явный action-state (safe mode / ready / no action).
 3. После pipeline-run UI state синхронизируется с результатом (`success` / `warning`) без необходимости читать весь лог.
 
+## Phase 3 — feature-oriented batch реализован (4 шага)
+
+1. Добавлен user-visible блок запуска safe actions (select + run button) в shell UI.
+2. Реализован manual run flow для controlled actions через существующий pipeline (policy/audit/precheck/confirm/execution).
+3. Добавлено визуальное состояние выполнения action (кнопка `Обработка...`, disable/enable).
+4. Unified logging и error-state сохранены для manual run сценария.
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.

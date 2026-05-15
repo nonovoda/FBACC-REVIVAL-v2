@@ -13,6 +13,13 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       </div>
       <div data-role="tabs"></div>
       <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: ожидание инициализации...</div>
+      <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
+        <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
+          Safe Action
+          <select data-role="action-select" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;"></select>
+        </label>
+        <button data-role="run-action-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">Запустить</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
           ID рекламного аккаунта
@@ -34,6 +41,8 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
   const businessInput = container.querySelector('[data-role="business-input"]');
   const actionStateEl = container.querySelector('[data-role="action-state"]');
+  const actionSelectEl = container.querySelector('[data-role="action-select"]');
+  const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
   const tabsRoot = container.querySelector('[data-role="tabs"]');
   const tableRoot = container.querySelector('[data-role="table"]');
 
@@ -73,6 +82,37 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       actionStateEl.textContent = text;
       actionStateEl.style.color = tone === 'warning' ? '#ffd27d' : tone === 'error' ? '#ff8f8f' : '#c7e0d2';
       actionStateEl.style.borderColor = tone === 'warning' ? '#5a4620' : tone === 'error' ? '#5a2020' : '#22372f';
+    },
+    setActionOptions(options = []) {
+      actionSelectEl.innerHTML = '';
+      options.forEach((option) => {
+        const item = document.createElement('option');
+        item.value = option.id;
+        item.textContent = option.title;
+        actionSelectEl.appendChild(item);
+      });
+      if (!options.length) {
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'Нет доступных действий';
+        actionSelectEl.appendChild(empty);
+      }
+    },
+    getSelectedActionId() {
+      return actionSelectEl.value;
+    },
+    setActionRunner(handler) {
+      runActionBtnEl.onclick = () => {
+        if (typeof handler === 'function') {
+          handler();
+        }
+      };
+    },
+    setActionRunnerState({ disabled = false, label = 'Запустить' } = {}) {
+      runActionBtnEl.disabled = disabled;
+      runActionBtnEl.textContent = label;
+      runActionBtnEl.style.opacity = disabled ? '0.7' : '1';
+      runActionBtnEl.style.cursor = disabled ? 'not-allowed' : 'pointer';
     },
     destroy() {
       adAccountInput.removeEventListener('change', emitContext);
