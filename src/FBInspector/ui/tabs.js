@@ -1,4 +1,4 @@
-export const createTabs = ({ root, tabs, onSelect }) => {
+export const createTabs = ({ root, tabs, onSelect, initialActiveTabId }) => {
   const wrapper = document.createElement('div');
   wrapper.style.display = 'flex';
   wrapper.style.gap = '6px';
@@ -14,7 +14,9 @@ export const createTabs = ({ root, tabs, onSelect }) => {
     });
   };
 
-  tabs.forEach((tab, index) => {
+  let defaultActiveId = tabs[0]?.id ?? null;
+
+  tabs.forEach((tab) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = tab.title;
@@ -32,11 +34,16 @@ export const createTabs = ({ root, tabs, onSelect }) => {
     buttons.set(tab.id, button);
     wrapper.appendChild(button);
 
-    if (index === 0) {
-      setActiveTab(tab.id);
+    if (!defaultActiveId) {
+      defaultActiveId = tab.id;
     }
   });
 
+  const initialTabId = tabs.some((tab) => tab.id === initialActiveTabId) ? initialActiveTabId : defaultActiveId;
+  if (initialTabId) {
+    setActiveTab(initialTabId);
+  }
+
   root.appendChild(wrapper);
-  return { destroy: () => root.removeChild(wrapper), setActiveTab };
+  return { destroy: () => root.removeChild(wrapper), setActiveTab, initialTabId };
 };

@@ -151,6 +151,35 @@
     error: (message, meta) => emit("error", message, meta)
   };
 
+  // src/FBInspector/core/storage.js
+  var KEY_PREFIX = "fbinspector:";
+  var buildKey = (key) => `${KEY_PREFIX}${key}`;
+  var safeParse = (value, fallback = null) => {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  };
+  var storage = {
+    get(key, fallback = null) {
+      const raw = window.localStorage.getItem(buildKey(key));
+      if (raw === null) {
+        return fallback;
+      }
+      return safeParse(raw, fallback);
+    },
+    set(key, value) {
+      window.localStorage.setItem(buildKey(key), JSON.stringify(value));
+    },
+    remove(key) {
+      window.localStorage.removeItem(buildKey(key));
+    },
+    clear() {
+      Object.keys(window.localStorage).filter((key) => key.startsWith(KEY_PREFIX)).forEach((key) => window.localStorage.removeItem(key));
+    }
+  };
+
   // src/FBInspector/core/utils.js
   var safeRemoveNode = (node) => {
     if (node && node.parentNode) {
@@ -172,7 +201,7 @@
 `;
 
   // src/FBInspector/ui/tabs.js
-  var createTabs = ({ root, tabs, onSelect }) => {
+  var createTabs = ({ root, tabs, onSelect, initialActiveTabId }) => {
     const wrapper = document.createElement("div");
     wrapper.style.display = "flex";
     wrapper.style.gap = "6px";
@@ -185,7 +214,8 @@
         button.style.color = tabId === id ? "#4dff8f" : "#c7e0d2";
       });
     };
-    tabs.forEach((tab, index) => {
+    let defaultActiveId = tabs[0]?.id ?? null;
+    tabs.forEach((tab) => {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = tab.title;
@@ -201,12 +231,16 @@
       };
       buttons.set(tab.id, button);
       wrapper.appendChild(button);
-      if (index === 0) {
-        setActiveTab(tab.id);
+      if (!defaultActiveId) {
+        defaultActiveId = tab.id;
       }
     });
+    const initialTabId = tabs.some((tab) => tab.id === initialActiveTabId) ? initialActiveTabId : defaultActiveId;
+    if (initialTabId) {
+      setActiveTab(initialTabId);
+    }
     root.appendChild(wrapper);
-    return { destroy: () => root.removeChild(wrapper), setActiveTab };
+    return { destroy: () => root.removeChild(wrapper), setActiveTab, initialTabId };
   };
 
   // src/FBInspector/ui/table.js
@@ -234,7 +268,7 @@
   };
 
   // src/FBInspector/ui/shell.js
-  var createShell = ({ root, tabs, onSelect }) => {
+  var createShell = ({ root, tabs, onSelect, initialContext = {}, initialTabId, onContextChange }) => {
     const container = document.createElement("div");
     container.innerHTML = `
     <div style="background:#0f1715;border:1px solid #2b433a;border-radius:14px;padding:14px;min-width:320px;max-width:560px;">
@@ -245,6 +279,35 @@
         </div>
       </div>
       <div data-role="tabs"></div>
+      <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438...</div>
+      <div data-role="action-batch-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#99b3a6;">Batch: \u043D\u0435 \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u043B\u0441\u044F</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button data-role="copy-json-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C JSON</button>
+        <button data-role="clear-log-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C \u043B\u043E\u0433</button>
+      </div>
+      <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
+        <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
+          Safe Action
+          <select data-role="action-select" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;"></select>
+        </label>
+        <button data-role="run-action-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C</button>
+        <button data-role="run-all-actions-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C \u0432\u0441\u0435</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c7e0d2;margin-bottom:8px;">
+        <input data-role="actions-enabled-toggle" type="checkbox" />
+        \u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C safe actions (\u0442\u043E\u043B\u044C\u043A\u043E read-only)
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
+          ID \u0440\u0435\u043A\u043B\u0430\u043C\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430
+          <input data-role="ad-account-input" placeholder="\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, 123456789" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
+          ID \u0431\u0438\u0437\u043D\u0435\u0441\u0430
+          <input data-role="business-input" placeholder="\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px;color:#e8fff0;font-size:12px;" />
+        </label>
+      </div>
+      <button data-role="clear-context-btn" type="button" style="margin-bottom:8px;background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442</button>
       <div data-role="table"></div>
       <div style="margin-top:10px;font-size:12px;color:#c7e0d2;">\u041B\u043E\u0433 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438</div>
       <pre data-role="log" style="margin-top:6px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;min-height:100px;max-height:180px;overflow:auto;font-size:12px;color:#e8fff0;"></pre>
@@ -252,10 +315,65 @@
   `;
     root.appendChild(container);
     const logEl = container.querySelector('[data-role="log"]');
+    const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
+    const businessInput = container.querySelector('[data-role="business-input"]');
+    const actionStateEl = container.querySelector('[data-role="action-state"]');
+    const actionBatchStateEl = container.querySelector('[data-role="action-batch-state"]');
+    const copyJsonBtnEl = container.querySelector('[data-role="copy-json-btn"]');
+    const clearLogBtnEl = container.querySelector('[data-role="clear-log-btn"]');
+    const actionSelectEl = container.querySelector('[data-role="action-select"]');
+    const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
+    const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
+    const actionsEnabledToggleEl = container.querySelector('[data-role="actions-enabled-toggle"]');
+    const clearContextBtnEl = container.querySelector('[data-role="clear-context-btn"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
-    const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect });
+    const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
     const tableUi = createTable({ root: tableRoot });
+    let latestRows = [];
+    adAccountInput.value = initialContext.selectedAdAccountId || "";
+    businessInput.value = initialContext.selectedBusinessId || "";
+    const emitContext = () => {
+      if (typeof onContextChange === "function") {
+        onContextChange({
+          selectedAdAccountId: adAccountInput.value.trim(),
+          selectedBusinessId: businessInput.value.trim()
+        });
+      }
+    };
+    adAccountInput.addEventListener("change", emitContext);
+    businessInput.addEventListener("change", emitContext);
+    const emitActionsPolicyToggle = () => {
+      if (typeof onContextChange === "function") {
+        onContextChange({
+          selectedAdAccountId: adAccountInput.value.trim(),
+          selectedBusinessId: businessInput.value.trim(),
+          phase3ActionsEnabled: Boolean(actionsEnabledToggleEl.checked)
+        });
+      }
+    };
+    actionsEnabledToggleEl.addEventListener("change", emitActionsPolicyToggle);
+    copyJsonBtnEl.onclick = async () => {
+      const payload = JSON.stringify(latestRows, null, 2);
+      try {
+        await navigator.clipboard.writeText(payload);
+        logEl.textContent += `[${(/* @__PURE__ */ new Date()).toLocaleTimeString("ru-RU", { hour12: false })}] [success] JSON \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D \u0432 \u0431\u0443\u0444\u0435\u0440 \u043E\u0431\u043C\u0435\u043D\u0430
+`;
+      } catch {
+        logEl.textContent += `[${(/* @__PURE__ */ new Date()).toLocaleTimeString("ru-RU", { hour12: false })}] [warning] \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C JSON \u0447\u0435\u0440\u0435\u0437 clipboard API
+`;
+      }
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    clearLogBtnEl.onclick = () => {
+      logEl.textContent = "";
+    };
+    const clearContext = () => {
+      adAccountInput.value = "";
+      businessInput.value = "";
+      emitContext();
+    };
+    clearContextBtnEl.addEventListener("click", clearContext);
     return {
       appendLog(entry) {
         const line = `[${entry.ts}] [${entry.level}] ${entry.message}`;
@@ -264,15 +382,87 @@
         logEl.scrollTop = logEl.scrollHeight;
       },
       renderRows(rows) {
+        latestRows = Array.isArray(rows) ? rows : [];
         tableUi.render(rows);
       },
+      getContext() {
+        return {
+          selectedAdAccountId: adAccountInput.value.trim(),
+          selectedBusinessId: businessInput.value.trim()
+        };
+      },
+      setActionState(text, tone = "info") {
+        actionStateEl.textContent = text;
+        actionStateEl.style.color = tone === "warning" ? "#ffd27d" : tone === "error" ? "#ff8f8f" : "#c7e0d2";
+        actionStateEl.style.borderColor = tone === "warning" ? "#5a4620" : tone === "error" ? "#5a2020" : "#22372f";
+      },
+      setActionBatchState(text, tone = "info") {
+        actionBatchStateEl.textContent = text;
+        actionBatchStateEl.style.color = tone === "warning" ? "#ffd27d" : tone === "error" ? "#ff8f8f" : "#99b3a6";
+        actionBatchStateEl.style.borderColor = tone === "warning" ? "#5a4620" : tone === "error" ? "#5a2020" : "#22372f";
+      },
+      setActionOptions(options = []) {
+        actionSelectEl.innerHTML = "";
+        options.forEach((option) => {
+          const item = document.createElement("option");
+          item.value = option.id;
+          item.textContent = option.title;
+          actionSelectEl.appendChild(item);
+        });
+        if (!options.length) {
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439";
+          actionSelectEl.appendChild(empty);
+        }
+      },
+      getSelectedActionId() {
+        return actionSelectEl.value;
+      },
+      setActionRunner(handler) {
+        runActionBtnEl.onclick = () => {
+          if (typeof handler === "function") {
+            handler();
+          }
+        };
+      },
+      setRunAllActionsRunner(handler) {
+        runAllActionBtnEl.onclick = () => {
+          if (typeof handler === "function") {
+            handler();
+          }
+        };
+      },
+      setActionRunnerState({ disabled = false, label = "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" } = {}) {
+        runActionBtnEl.disabled = disabled || !actionsEnabledToggleEl.checked;
+        runActionBtnEl.textContent = label;
+        runActionBtnEl.style.opacity = disabled ? "0.7" : "1";
+        runActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
+        runAllActionBtnEl.disabled = disabled || !actionsEnabledToggleEl.checked;
+        runAllActionBtnEl.textContent = disabled ? "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430..." : "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C \u0432\u0441\u0435";
+        runAllActionBtnEl.style.opacity = disabled ? "0.7" : "1";
+        runAllActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
+      },
+      setActionsEnabled(value) {
+        actionsEnabledToggleEl.checked = Boolean(value);
+        runActionBtnEl.disabled = !actionsEnabledToggleEl.checked;
+        runAllActionBtnEl.disabled = !actionsEnabledToggleEl.checked;
+      },
+      isActionsEnabled() {
+        return Boolean(actionsEnabledToggleEl.checked);
+      },
       destroy() {
+        adAccountInput.removeEventListener("change", emitContext);
+        businessInput.removeEventListener("change", emitContext);
+        actionsEnabledToggleEl.removeEventListener("change", emitActionsPolicyToggle);
+        clearContextBtnEl.removeEventListener("click", clearContext);
         tabsUi.destroy();
         tableUi.destroy();
         if (container.parentNode === root) {
           root.removeChild(container);
         }
-      }
+      },
+      initialTabId: tabsUi.initialTabId
     };
   };
 
@@ -316,20 +506,130 @@
   };
 
   // src/FBInspector/modules/billing.js
+  var normalizeFundingSource = (item = {}) => ({
+    id: item.id ?? null,
+    type: item.type ?? null,
+    display_string: item.display_string ?? null,
+    billing_status: item.billing_status ?? null
+  });
+  var extractMissingFieldFromError = (error) => {
+    const message = error?.message || "";
+    const match = message.match(/nonexisting field \(([^)]+)\)/i);
+    return match?.[1] ?? null;
+  };
   var billingModule = {
     id: "billing",
     title: "\u0411\u0438\u043B\u043B\u0438\u043D\u0433",
-    async load() {
-      return [];
+    requiresAccountContext: true,
+    async load({ accessToken, context = {}, logDebug }) {
+      const adAccountId = context.selectedAdAccountId;
+      if (!adAccountId) {
+        throw {
+          code: "BILLING_ACCOUNT_CONTEXT_REQUIRED",
+          message: "\u0414\u043B\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u0411\u0438\u043B\u043B\u0438\u043D\u0433\xBB \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 ad account \u0432 \u043F\u043E\u043B\u0435 \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0430."
+        };
+      }
+      const endpoint = `act_${adAccountId}`;
+      const baseFields = "id,name,account_status,amount_spent,balance,currency";
+      const requestedFundingFields = ["type", "display_string", "billing_status"];
+      let activeFundingFields = [...requestedFundingFields];
+      const createParams = () => ({
+        fields: `${baseFields},funding_source_details{${activeFundingFields.join(",")}}`
+      });
+      let params = createParams();
+      logDebug("Billing: \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0441\u0430", { endpoint, params, context });
+      let payload;
+      try {
+        payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      } catch (error) {
+        const missingField = extractMissingFieldFromError(error);
+        if (error?.code === 100 && missingField && activeFundingFields.includes(missingField)) {
+          activeFundingFields = activeFundingFields.filter((field) => field !== missingField);
+          params = createParams();
+          logDebug("Billing: \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435", {
+            message: "\u0427\u0430\u0441\u0442\u044C \u043F\u043E\u043B\u0435\u0439 billing \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430, \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441 \u0431\u0435\u0437 \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u043D\u043E\u0433\u043E \u043F\u043E\u043B\u044F",
+            unavailableFields: [missingField],
+            errorObject: error,
+            retryParams: params
+          });
+          payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+        } else {
+          throw error;
+        }
+      }
+      const rawFunding = payload?.funding_source_details;
+      const rawItems = Array.isArray(rawFunding) ? rawFunding : rawFunding ? [rawFunding] : [];
+      const normalizedItems = rawItems.map((item) => normalizeFundingSource(item));
+      logDebug("Billing: \u0441\u0432\u043E\u0434\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 API", {
+        endpoint,
+        rawSummary: {
+          accountId: payload?.id ?? null,
+          accountName: payload?.name ?? null,
+          hasFundingSourceDetails: Boolean(rawFunding),
+          fundingSourceType: Array.isArray(rawFunding) ? "array" : typeof rawFunding,
+          requestedFundingFields,
+          activeFundingFields,
+          unavailableFundingFields: requestedFundingFields.filter((field) => !activeFundingFields.includes(field))
+        },
+        itemsBeforeNormalize: rawItems.length,
+        itemsAfterNormalize: normalizedItems.length
+      });
+      if (!normalizedItems.length) {
+        return [{
+          account_id: payload?.id ?? null,
+          account_name: payload?.name ?? null,
+          billing_status: payload?.account_status ?? null,
+          amount_spent: payload?.amount_spent ?? null,
+          balance: payload?.balance ?? null,
+          currency: payload?.currency ?? null
+        }];
+      }
+      return normalizedItems;
     }
   };
 
   // src/FBInspector/modules/ads.js
+  var normalizeAdsRows = (items = []) => items.map((item) => ({
+    id: item.id ?? null,
+    name: item.name ?? "\u0411\u0435\u0437 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F",
+    status: item.status ?? null,
+    effective_status: item.effective_status ?? null,
+    campaign_id: item.campaign_id ?? null,
+    adset_id: item.adset_id ?? null,
+    creative_id: item.creative?.id ?? null
+  }));
   var adsModule = {
     id: "ads",
     title: "\u041E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u044F",
-    async load() {
-      return [];
+    requiresAccountContext: true,
+    async load({ accessToken, context = {}, logDebug }) {
+      const adAccountId = context.selectedAdAccountId;
+      if (!adAccountId) {
+        throw {
+          code: "ADS_ACCOUNT_CONTEXT_REQUIRED",
+          message: "\u0414\u043B\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u041E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u044F\xBB \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 ad account \u0432 \u043F\u043E\u043B\u0435 \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0430."
+        };
+      }
+      const endpoint = `act_${adAccountId}/ads`;
+      const params = {
+        fields: "id,name,status,effective_status,campaign_id,adset_id,creative{id}",
+        limit: 100
+      };
+      logDebug("Ads: \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0441\u0430", { endpoint, params, context });
+      const payload = await fbApi.get(endpoint, params, { accessToken, retries: 1 });
+      const rawItems = Array.isArray(payload?.data) ? payload.data : [];
+      const normalizedItems = normalizeAdsRows(rawItems);
+      logDebug("Ads: \u0441\u0432\u043E\u0434\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 API", {
+        endpoint,
+        rawSummary: {
+          hasDataArray: Array.isArray(payload?.data),
+          dataLength: rawItems.length,
+          pagingNext: Boolean(payload?.paging?.next)
+        },
+        itemsBeforeNormalize: rawItems.length,
+        itemsAfterNormalize: normalizedItems.length
+      });
+      return normalizedItems;
     }
   };
 
@@ -343,6 +643,326 @@
     }
   };
 
+  // src/FBInspector/core/actions/registry.js
+  var ACTION_RISK_LEVELS = {
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high"
+  };
+  var registry = [
+    {
+      id: "accounts.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432",
+      module: "accounts",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "ads.refresh_snapshot",
+      title: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C snapshot \u043E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u0439",
+      module: "ads",
+      requiresAdAccount: true,
+      destructive: false,
+      enabled: false,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "billing.refresh_snapshot",
+      title: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C snapshot \u0431\u0438\u043B\u043B\u0438\u043D\u0433\u0430",
+      module: "billing",
+      requiresAdAccount: true,
+      destructive: false,
+      enabled: false,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "billing.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0431\u0438\u043B\u043B\u0438\u043D\u0433\u0430",
+      module: "billing",
+      requiresAdAccount: true,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "businesses.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0431\u0438\u0437\u043D\u0435\u0441\u043E\u0432",
+      module: "businesses",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "pages.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0441\u0442\u0440\u0430\u043D\u0438\u0446",
+      module: "pages",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    },
+    {
+      id: "diagnostics.load_snapshot",
+      title: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C snapshot \u0434\u0438\u0430\u0433\u043D\u043E\u0441\u0442\u0438\u043A\u0438",
+      module: "diagnostics",
+      requiresAdAccount: false,
+      destructive: false,
+      enabled: true,
+      riskLevel: ACTION_RISK_LEVELS.LOW
+    }
+  ];
+  var actionsRegistry = {
+    list() {
+      return registry.map((action) => ({ ...action }));
+    },
+    listEnabled() {
+      return registry.filter((action) => action.enabled).map((action) => ({ ...action }));
+    },
+    getById(actionId) {
+      return registry.find((action) => action.id === actionId) ?? null;
+    },
+    listByModule(moduleId) {
+      return registry.filter((action) => action.module === moduleId).map((action) => ({ ...action }));
+    },
+    summarizeEnabledByModule() {
+      return registry.reduce((acc, action) => {
+        const key = action.module || "unknown";
+        if (!acc[key]) {
+          acc[key] = { total: 0, enabled: 0 };
+        }
+        acc[key].total += 1;
+        if (action.enabled) {
+          acc[key].enabled += 1;
+        }
+        return acc;
+      }, {});
+    },
+    listReadonlyEnabled() {
+      return registry.filter((action) => action.enabled && !action.destructive).map((action) => ({ ...action }));
+    },
+    summarizeEnabledByRisk() {
+      return registry.reduce((acc, action) => {
+        if (!action.enabled) {
+          return acc;
+        }
+        const risk = action.riskLevel || "unknown";
+        if (!acc[risk]) {
+          acc[risk] = 0;
+        }
+        acc[risk] += 1;
+        return acc;
+      }, {});
+    }
+  };
+
+  // src/FBInspector/core/actions/policy.js
+  var basePolicy = {
+    phase3ActionsEnabled: false,
+    allowHighRiskActions: false,
+    allowedActionIds: []
+  };
+  var buildDenied = (reasonCode, reason) => ({
+    allowed: false,
+    reasonCode,
+    reason
+  });
+  var actionPolicy = {
+    evaluate(action, context = {}, policy = basePolicy) {
+      if (!action) {
+        return buildDenied("ACTION_NOT_FOUND", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u0432 \u0440\u0435\u0435\u0441\u0442\u0440\u0435.");
+      }
+      if (!policy.phase3ActionsEnabled) {
+        return buildDenied("PHASE3_ACTIONS_DISABLED", "Phase 3 actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438.");
+      }
+      if (Array.isArray(policy.allowedActionIds) && policy.allowedActionIds.length > 0 && !policy.allowedActionIds.includes(action.id)) {
+        return buildDenied("ACTION_NOT_ALLOWED", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 allowlist \u0442\u0435\u043A\u0443\u0449\u0435\u0439 policy-\u043A\u043E\u043D\u0444\u0438\u0433\u0443\u0440\u0430\u0446\u0438\u0438.");
+      }
+      if (action.requiresAdAccount && !context.selectedAdAccountId) {
+        return buildDenied("AD_ACCOUNT_REQUIRED", "\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u044B\u0431\u0440\u0430\u0442\u044C ad account \u043F\u0435\u0440\u0435\u0434 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435\u043C \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F.");
+      }
+      if (action.riskLevel === "high" && !policy.allowHighRiskActions) {
+        return buildDenied("HIGH_RISK_BLOCKED", "\u0412\u044B\u0441\u043E\u043A\u043E\u0440\u0438\u0441\u043A\u043E\u0432\u044B\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438.");
+      }
+      return {
+        allowed: true,
+        reasonCode: "ALLOWED",
+        reason: "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439."
+      };
+    }
+  };
+  var summarizePolicy = (policy = basePolicy) => ({
+    phase3ActionsEnabled: Boolean(policy.phase3ActionsEnabled),
+    allowHighRiskActions: Boolean(policy.allowHighRiskActions),
+    allowlistSize: Array.isArray(policy.allowedActionIds) ? policy.allowedActionIds.length : 0
+  });
+
+  // src/FBInspector/core/actions/audit.js
+  var nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
+  var summarizeContext = (context = {}) => ({
+    selectedAdAccountId: context.selectedAdAccountId || null,
+    selectedBusinessId: context.selectedBusinessId || null
+  });
+  var actionAudit = {
+    createEntry({ stage, actionId, status, context = {}, details = {} }) {
+      return {
+        ts: nowIso(),
+        stage,
+        actionId,
+        status,
+        context: summarizeContext(context),
+        details
+      };
+    }
+  };
+
+  // src/FBInspector/core/actions/pipeline.js
+  var actionPipeline = {
+    async run({ actionId, context = {}, policy, logger: logger2, execute }) {
+      const startedAt = Date.now();
+      const action = actionsRegistry.getById(actionId);
+      logger2(actionAudit.createEntry({
+        stage: "resolve",
+        actionId,
+        status: action ? "ok" : "error",
+        context,
+        details: { found: Boolean(action) }
+      }));
+      const decision = actionPolicy.evaluate(action, context, policy);
+      logger2(actionAudit.createEntry({
+        stage: "policy",
+        actionId,
+        status: decision.allowed ? "ok" : "blocked",
+        context,
+        details: decision
+      }));
+      if (!decision.allowed) {
+        return {
+          ok: false,
+          stage: "policy",
+          reasonCode: decision.reasonCode,
+          reason: decision.reason
+        };
+      }
+      const precheck = {
+        enabled: Boolean(action?.enabled),
+        reason: action?.enabled ? "Action \u043F\u043E\u043C\u0435\u0447\u0435\u043D \u043A\u0430\u043A enabled." : "Action \u043E\u0442\u043A\u043B\u044E\u0447\u0451\u043D \u0432 registry."
+      };
+      logger2(actionAudit.createEntry({
+        stage: "precheck",
+        actionId,
+        status: precheck.enabled ? "ok" : "blocked",
+        context,
+        details: precheck
+      }));
+      if (!precheck.enabled) {
+        return {
+          ok: false,
+          stage: "precheck",
+          reasonCode: "ACTION_DISABLED",
+          reason: "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u0432 registry."
+        };
+      }
+      const confirmResult = {
+        required: Boolean(action?.destructive),
+        confirmed: !action?.destructive,
+        mode: action?.destructive ? "manual_required" : "auto_confirm_read_only"
+      };
+      logger2(actionAudit.createEntry({
+        stage: "confirm",
+        actionId,
+        status: confirmResult.confirmed ? "ok" : "blocked",
+        context,
+        details: confirmResult
+      }));
+      if (!confirmResult.confirmed) {
+        return {
+          ok: false,
+          stage: "confirm",
+          reasonCode: "CONFIRMATION_REQUIRED",
+          reason: "\u0414\u043B\u044F \u044D\u0442\u043E\u0433\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u0442\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u044F\u0432\u043D\u043E\u0435 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u0435."
+        };
+      }
+      let executionResult = null;
+      try {
+        if (typeof execute === "function") {
+          executionResult = await execute(action, context);
+        } else {
+          executionResult = {
+            mode: "dry_run",
+            message: "Execution handler \u043D\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D. \u0412\u044B\u043F\u043E\u043B\u043D\u0435\u043D dry-run."
+          };
+        }
+      } catch (error) {
+        logger2(actionAudit.createEntry({
+          stage: "execution",
+          actionId,
+          status: "error",
+          context,
+          details: {
+            message: error?.message || "\u041E\u0448\u0438\u0431\u043A\u0430 execution handler",
+            raw: error
+          }
+        }));
+        return {
+          ok: false,
+          stage: "execution",
+          reasonCode: "EXECUTION_ERROR",
+          reason: error?.message || "\u041E\u0448\u0438\u0431\u043A\u0430 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F"
+        };
+      }
+      logger2(actionAudit.createEntry({
+        stage: "execution",
+        actionId,
+        status: "ok",
+        context,
+        details: executionResult
+      }));
+      return {
+        ok: true,
+        stage: "execution",
+        message: "Pipeline \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D \u0443\u0441\u043F\u0435\u0448\u043D\u043E.",
+        durationMs: Math.max(0, Date.now() - startedAt),
+        result: executionResult
+      };
+    }
+  };
+
+  // src/FBInspector/core/actions/executors.js
+  var createActionExecutors = ({ modules, accessToken, context, logDebug }) => {
+    const {
+      accountsModule: accountsModule2,
+      billingModule: billingModule2,
+      businessesModule: businessesModule2,
+      pagesModule: pagesModule2,
+      diagnosticsModule: diagnosticsModule2
+    } = modules;
+    return {
+      "accounts.load_snapshot": async () => accountsModule2.load({ accessToken }),
+      "billing.load_snapshot": async () => billingModule2.load({ accessToken, context, logDebug }),
+      "businesses.load_snapshot": async () => businessesModule2.load({ accessToken }),
+      "pages.load_snapshot": async () => pagesModule2.load({ accessToken }),
+      "diagnostics.load_snapshot": async () => diagnosticsModule2.load({ accessToken })
+    };
+  };
+  var runActionExecutor = async ({ actionId, executors = {} }) => {
+    const executeHandler = executors[actionId];
+    if (typeof executeHandler !== "function") {
+      return {
+        ok: false,
+        rows: [],
+        warnings: ["\u0414\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 execution handler."]
+      };
+    }
+    const rows = await executeHandler();
+    return {
+      ok: true,
+      rows: Array.isArray(rows) ? rows : []
+    };
+  };
+
   // src/FBInspector/index.js
   var phase2Modules = [
     accountsModule,
@@ -352,6 +972,11 @@
     adsModule,
     diagnosticsModule
   ];
+  var STORAGE_KEYS = {
+    selectedTab: "selected_tab",
+    selectedContext: "selected_context",
+    actionsEnabled: "actions_enabled"
+  };
   var mountStyles = () => {
     const style = document.createElement("style");
     style.id = FBINSPECTOR_STYLE_ID;
@@ -365,10 +990,59 @@
     document.body.appendChild(root);
     return root;
   };
+  var buildActionResult = ({ mode = "read_only", rows = [], warnings = [], message = "", startedAt = 0 }) => ({
+    mode,
+    loadedItems: Array.isArray(rows) ? rows.length : 0,
+    durationMs: startedAt ? Math.max(0, Date.now() - startedAt) : 0,
+    warnings,
+    message
+  });
+  var selectStartupActionId = (context = {}, enabledActions = []) => {
+    if (!Array.isArray(enabledActions) || !enabledActions.length) {
+      return null;
+    }
+    if (context.selectedAdAccountId && enabledActions.some((action) => action.id === "billing.load_snapshot")) {
+      return "billing.load_snapshot";
+    }
+    if (enabledActions.some((action) => action.id === "accounts.load_snapshot")) {
+      return "accounts.load_snapshot";
+    }
+    return enabledActions[0].id;
+  };
+  var getActionMetadata = (action) => ({
+    id: action.id,
+    module: action.module,
+    enabled: action.enabled,
+    requiresAdAccount: action.requiresAdAccount,
+    destructive: action.destructive,
+    riskLevel: action.riskLevel
+  });
+  var formatActionStateMessage = ({ policySummary, startupActionId, enabledActions }) => {
+    if (!policySummary.phase3ActionsEnabled) {
+      return {
+        tone: "warning",
+        text: `Controlled Actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B (safe mode). Enabled \u0432 \u0440\u0435\u0435\u0441\u0442\u0440\u0435: ${enabledActions.length}.`
+      };
+    }
+    if (!startupActionId) {
+      return {
+        tone: "warning",
+        text: "Controlled Actions \u0432\u043A\u043B\u044E\u0447\u0435\u043D\u044B, \u043D\u043E \u043D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0433\u043E startup action (\u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 enabled/allowlist)."
+      };
+    }
+    return {
+      tone: "info",
+      text: `Controlled Actions \u0433\u043E\u0442\u043E\u0432\u044B: startup action ${startupActionId}.`
+    };
+  };
   var createInstance = () => {
     const style = mountStyles();
     const root = mountRoot();
     const token = authService.getAccessToken();
+    const initialAdAccountId = authService.getCurrentAdAccountId();
+    const storedContext = storage.get(STORAGE_KEYS.selectedContext, {});
+    const storedTab = storage.get(STORAGE_KEYS.selectedTab, null);
+    const storedActionsEnabled = storage.get(STORAGE_KEYS.actionsEnabled, false);
     const loadModule = async (shell2, moduleId) => {
       const selectedModule = phase2Modules.find((item) => item.id === moduleId);
       if (!selectedModule) {
@@ -380,26 +1054,221 @@
         shell2.renderRows([]);
         return;
       }
+      const context = shell2.getContext();
       shell2.appendLog(logger.info(`\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0438: ${selectedModule.title}`));
+      shell2.appendLog(logger.info(`\u041A\u043E\u043D\u0442\u0435\u043A\u0441\u0442: adAccount=${context.selectedAdAccountId || "\u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D"}, business=${context.selectedBusinessId || "\u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D"}`));
+      if (selectedModule.requiresAccountContext && !context.selectedAdAccountId) {
+        shell2.appendLog(logger.warning("\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u044B\u0431\u0440\u0430\u0442\u044C ad account \u0434\u043B\u044F \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u044D\u0442\u043E\u0439 \u0432\u043A\u043B\u0430\u0434\u043A\u0438."));
+        shell2.renderRows([]);
+        return;
+      }
+      const logDebug = (message, meta = {}) => {
+        shell2.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+      };
       try {
-        const rows = await selectedModule.load({ accessToken: token });
+        const rows = await selectedModule.load({ accessToken: token, context, logDebug });
         shell2.renderRows(rows);
-        shell2.appendLog(logger.success(`\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${rows.length}`));
+        if (!rows.length) {
+          shell2.appendLog(logger.warning("\u0414\u0430\u043D\u043D\u044B\u0435 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B, API \u0432\u0435\u0440\u043D\u0443\u043B \u043F\u0443\u0441\u0442\u043E\u0439 \u0441\u043F\u0438\u0441\u043E\u043A \u0431\u0435\u0437 \u043E\u0448\u0438\u0431\u043A\u0438"));
+        } else {
+          shell2.appendLog(logger.success(`\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${rows.length}`));
+        }
       } catch (error) {
         const normalized = fbApi.normalizeError(error);
         shell2.appendLog(logger.error(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 ${selectedModule.title}: ${normalized.message}`));
+        shell2.appendLog(logger.error(`\u041E\u0431\u044A\u0435\u043A\u0442 \u043E\u0448\u0438\u0431\u043A\u0438: ${JSON.stringify(normalized.raw || error)}`));
         shell2.renderRows([]);
       }
+    };
+    const executeControlledAction = async (shell2, actionId) => {
+      const phase3Policy2 = {
+        phase3ActionsEnabled: shell2.isActionsEnabled(),
+        allowHighRiskActions: false,
+        allowedActionIds: [
+          "accounts.load_snapshot",
+          "billing.load_snapshot",
+          "businesses.load_snapshot",
+          "pages.load_snapshot",
+          "diagnostics.load_snapshot"
+        ]
+      };
+      const startupContext2 = shell2.getContext();
+      shell2.setActionRunnerState({ disabled: true, label: "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430..." });
+      try {
+        const result = await actionPipeline.run({
+          actionId,
+          context: startupContext2,
+          policy: phase3Policy2,
+          logger: (auditEntry) => shell2.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
+          execute: async (action, context) => {
+            const logDebug = (message, meta = {}) => {
+              shell2.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+            };
+            const startedAt = Date.now();
+            const actionExecutors = createActionExecutors({
+              modules: { accountsModule, billingModule, businessesModule, pagesModule, diagnosticsModule },
+              accessToken: token,
+              context,
+              logDebug
+            });
+            const execution = await runActionExecutor({ actionId: action.id, executors: actionExecutors });
+            if (execution.ok) {
+              const actionTitle = action.title || action.id;
+              return buildActionResult({ rows: execution.rows, message: `${actionTitle} \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D.`, startedAt });
+            }
+            return buildActionResult({ mode: "dry_run", rows: execution.rows, warnings: execution.warnings, message: "Execution handler \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.", startedAt });
+          }
+        });
+        if (!result.ok) {
+          shell2.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+          shell2.setActionState(`Controlled Actions: ${result.reason}`, "warning");
+        } else {
+          shell2.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
+          shell2.appendLog(logger.success(result.message));
+          shell2.setActionState(`Controlled Actions: ${result.message}`, "info");
+        }
+        return result;
+      } finally {
+        shell2.setActionRunnerState({ disabled: false, label: "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" });
+      }
+    };
+    const executeAllControlledActions = async (shell2, actionIds = []) => {
+      if (!actionIds.length) {
+        shell2.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0434\u043B\u044F batch \u0437\u0430\u043F\u0443\u0441\u043A\u0430."));
+        shell2.setActionBatchState("Batch: \u043D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439", "warning");
+        return;
+      }
+      shell2.appendLog(logger.info(`Batch \u0437\u0430\u043F\u0443\u0441\u043A safe actions: ${actionIds.length}`));
+      shell2.setActionBatchState(`Batch: \u0437\u0430\u043F\u0443\u0449\u0435\u043D (${actionIds.length} \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439)`, "info");
+      const stats = { total: actionIds.length, success: 0, warning: 0 };
+      for (const actionId of actionIds) {
+        shell2.appendLog(logger.info(`Batch action start: ${actionId}`));
+        const result = await executeControlledAction(shell2, actionId);
+        if (result?.ok) {
+          stats.success += 1;
+        } else {
+          stats.warning += 1;
+        }
+      }
+      shell2.appendLog(logger.success("Batch \u0437\u0430\u043F\u0443\u0441\u043A safe actions \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D."));
+      const batchTone = stats.warning > 0 ? "warning" : "info";
+      shell2.setActionBatchState(`Batch: \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D (${stats.success}/${stats.total} \u0443\u0441\u043F\u0435\u0448\u043D\u043E, \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0439: ${stats.warning})`, batchTone);
     };
     const shell = createShell({
       root,
       tabs: phase2Modules,
+      initialContext: {
+        selectedAdAccountId: storedContext?.selectedAdAccountId || "",
+        selectedBusinessId: storedContext?.selectedBusinessId || ""
+      },
+      initialTabId: storedTab,
+      onContextChange: (nextContext) => {
+        storage.set(STORAGE_KEYS.selectedContext, {
+          selectedAdAccountId: nextContext.selectedAdAccountId,
+          selectedBusinessId: nextContext.selectedBusinessId
+        });
+        if (typeof nextContext.phase3ActionsEnabled === "boolean") {
+          storage.set(STORAGE_KEYS.actionsEnabled, nextContext.phase3ActionsEnabled);
+        }
+      },
       onSelect: (moduleId) => {
+        storage.set(STORAGE_KEYS.selectedTab, moduleId);
         loadModule(shell, moduleId);
       }
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
-    loadModule(shell, phase2Modules[0].id);
+    if (!storedContext?.selectedAdAccountId && initialAdAccountId) {
+      shell.appendLog(logger.info("\u0410\u0432\u0442\u043E\u043F\u043E\u0434\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 ad account \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u0430: \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 \u0432\u0440\u0443\u0447\u043D\u0443\u044E \u043F\u0440\u0438 \u043D\u0435\u043E\u0431\u0445\u043E\u0434\u0438\u043C\u043E\u0441\u0442\u0438."));
+    }
+    shell.setActionsEnabled(Boolean(storedActionsEnabled));
+    const phase3Policy = {
+      phase3ActionsEnabled: shell.isActionsEnabled(),
+      allowHighRiskActions: false,
+      allowedActionIds: [
+        "accounts.load_snapshot",
+        "billing.load_snapshot",
+        "businesses.load_snapshot",
+        "pages.load_snapshot",
+        "diagnostics.load_snapshot"
+      ]
+    };
+    const registeredActions = actionsRegistry.list();
+    const enabledActions = actionsRegistry.listEnabled();
+    const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();
+    const summaryByModule = actionsRegistry.summarizeEnabledByModule();
+    const summaryByRisk = actionsRegistry.summarizeEnabledByRisk();
+    shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${enabledActions.length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: read-only enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${readonlyEnabledActions.length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: summary by risk ${JSON.stringify(summaryByRisk)}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: policy summary ${JSON.stringify(summarizePolicy(phase3Policy))}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
+    const startupContext = shell.getContext();
+    const startupActionId = selectStartupActionId(startupContext, enabledActions);
+    const policySummary = summarizePolicy(phase3Policy);
+    const actionState = formatActionStateMessage({ policySummary, startupActionId, enabledActions });
+    shell.setActionState(actionState.text, actionState.tone);
+    shell.setActionOptions(enabledActions.map((item) => ({ id: item.id, title: item.title })));
+    shell.setActionRunner(() => {
+      const selectedActionId = shell.getSelectedActionId();
+      if (!selectedActionId) {
+        shell.appendLog(logger.warning("\u041D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430."));
+        return;
+      }
+      executeControlledAction(shell, selectedActionId);
+    });
+    shell.setRunAllActionsRunner(() => {
+      const batchActionIds = enabledActions.filter((item) => !item.destructive).map((item) => item.id);
+      executeAllControlledActions(shell, batchActionIds);
+    });
+    if (!phase3Policy.phase3ActionsEnabled) {
+      shell.appendLog(logger.warning("Controlled actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E. \u0414\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u0435 policy flag phase3ActionsEnabled."));
+    } else if (startupActionId) {
+      actionPipeline.run({
+        actionId: startupActionId,
+        context: startupContext,
+        policy: phase3Policy,
+        logger: (auditEntry) => shell.appendLog(logger.info(`Action audit: ${JSON.stringify(auditEntry)}`)),
+        execute: async (action, context) => {
+          const logDebug = (message, meta = {}) => {
+            shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
+          };
+          const startedAt = Date.now();
+          const actionExecutors = createActionExecutors({
+            modules: { accountsModule, billingModule, businessesModule, pagesModule, diagnosticsModule },
+            accessToken: token,
+            context,
+            logDebug
+          });
+          const execution = await runActionExecutor({ actionId: action.id, executors: actionExecutors });
+          if (execution.ok) {
+            const actionTitle = action.title || action.id;
+            return buildActionResult({ rows: execution.rows, message: `${actionTitle} \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D.`, startedAt });
+          }
+          return buildActionResult({
+            mode: "dry_run",
+            rows: execution.rows,
+            warnings: execution.warnings,
+            message: "Execution handler \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.",
+            startedAt
+          });
+        }
+      }).then((result) => {
+        if (!result.ok) {
+          shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
+          shell.setActionState(`Controlled Actions: ${result.reason}`, "warning");
+        } else {
+          shell.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
+          shell.appendLog(logger.success(result.message));
+          shell.setActionState(`Controlled Actions: ${result.message}`, "info");
+        }
+      });
+    } else {
+      shell.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 enabled controlled actions \u0434\u043B\u044F startup pipeline."));
+      shell.setActionState("Controlled Actions: \u043D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 startup action.", "warning");
+    }
+    loadModule(shell, shell.initialTabId || phase2Modules[0].id);
     return {
       destroy() {
         shell.appendLog(logger.warning("Destroy \u0432\u044B\u0437\u0432\u0430\u043D, \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E cleanup"));
