@@ -53,3 +53,4 @@
 - Оператор должен видеть compact action-state прямо в UI (не только в логе): safe mode / ready / blocked.
 - После завершения foundation нужно добавлять user-visible capabilities (например manual safe action run), а не только infra-изменения.
 - Автоподстановка ad account в UI по auth-context может давать ложный контекст; safer default — пустое поле + явный ручной выбор.
+- Для batch действий нужен отдельный UI progress/result state, иначе оператору сложно понять итог без чтения полного лога.

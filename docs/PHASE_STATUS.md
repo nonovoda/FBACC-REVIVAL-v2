@@ -210,6 +210,12 @@
 3. Кнопки запуска controlled actions теперь disabled, пока toggle `Включить safe actions` выключен.
 4. Добавлен явный лог о том, что автоподстановка ad account отключена и выбор остаётся ручным.
 
+## Phase 3 — feature batch реализован (3 шага)
+
+1. В UI добавлен отдельный batch-state блок (`Batch: ...`) для операторской видимости массового запуска.
+2. Реализованы batch метрики результата: `успешно / предупреждений`.
+3. Batch-state синхронизируется с progress и итогом выполнения (info/warning tone).
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.

@@ -207,6 +207,7 @@ const createInstance = () => {
         shell.appendLog(logger.success(result.message));
         shell.setActionState(`Controlled Actions: ${result.message}`, 'info');
       }
+      return result;
     } finally {
       shell.setActionRunnerState({ disabled: false, label: 'Запустить' });
     }
@@ -215,15 +216,25 @@ const createInstance = () => {
   const executeAllControlledActions = async (shell, actionIds = []) => {
     if (!actionIds.length) {
       shell.appendLog(logger.warning('Нет доступных действий для batch запуска.'));
+      shell.setActionBatchState('Batch: нет доступных действий', 'warning');
       return;
     }
 
     shell.appendLog(logger.info(`Batch запуск safe actions: ${actionIds.length}`));
+    shell.setActionBatchState(`Batch: запущен (${actionIds.length} действий)`, 'info');
+    const stats = { total: actionIds.length, success: 0, warning: 0 };
     for (const actionId of actionIds) {
       shell.appendLog(logger.info(`Batch action start: ${actionId}`));
-      await executeControlledAction(shell, actionId);
+      const result = await executeControlledAction(shell, actionId);
+      if (result?.ok) {
+        stats.success += 1;
+      } else {
+        stats.warning += 1;
+      }
     }
     shell.appendLog(logger.success('Batch запуск safe actions завершён.'));
+    const batchTone = stats.warning > 0 ? 'warning' : 'info';
+    shell.setActionBatchState(`Batch: завершён (${stats.success}/${stats.total} успешно, предупреждений: ${stats.warning})`, batchTone);
   };
 
   const shell = createShell({

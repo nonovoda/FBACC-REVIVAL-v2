@@ -13,6 +13,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       </div>
       <div data-role="tabs"></div>
       <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: ожидание инициализации...</div>
+      <div data-role="action-batch-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#99b3a6;">Batch: не запускался</div>
       <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
         <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
           Safe Action
@@ -47,6 +48,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
   const businessInput = container.querySelector('[data-role="business-input"]');
   const actionStateEl = container.querySelector('[data-role="action-state"]');
+  const actionBatchStateEl = container.querySelector('[data-role="action-batch-state"]');
   const actionSelectEl = container.querySelector('[data-role="action-select"]');
   const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
   const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
@@ -111,6 +113,11 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       actionStateEl.textContent = text;
       actionStateEl.style.color = tone === 'warning' ? '#ffd27d' : tone === 'error' ? '#ff8f8f' : '#c7e0d2';
       actionStateEl.style.borderColor = tone === 'warning' ? '#5a4620' : tone === 'error' ? '#5a2020' : '#22372f';
+    },
+    setActionBatchState(text, tone = 'info') {
+      actionBatchStateEl.textContent = text;
+      actionBatchStateEl.style.color = tone === 'warning' ? '#ffd27d' : tone === 'error' ? '#ff8f8f' : '#99b3a6';
+      actionBatchStateEl.style.borderColor = tone === 'warning' ? '#5a4620' : tone === 'error' ? '#5a2020' : '#22372f';
     },
     setActionOptions(options = []) {
       actionSelectEl.innerHTML = '';

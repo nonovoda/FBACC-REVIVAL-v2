@@ -280,6 +280,7 @@
       </div>
       <div data-role="tabs"></div>
       <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438...</div>
+      <div data-role="action-batch-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#99b3a6;">Batch: \u043D\u0435 \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u043B\u0441\u044F</div>
       <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
         <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
           Safe Action
@@ -313,6 +314,7 @@
     const adAccountInput = container.querySelector('[data-role="ad-account-input"]');
     const businessInput = container.querySelector('[data-role="business-input"]');
     const actionStateEl = container.querySelector('[data-role="action-state"]');
+    const actionBatchStateEl = container.querySelector('[data-role="action-batch-state"]');
     const actionSelectEl = container.querySelector('[data-role="action-select"]');
     const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
     const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
@@ -370,6 +372,11 @@
         actionStateEl.textContent = text;
         actionStateEl.style.color = tone === "warning" ? "#ffd27d" : tone === "error" ? "#ff8f8f" : "#c7e0d2";
         actionStateEl.style.borderColor = tone === "warning" ? "#5a4620" : tone === "error" ? "#5a2020" : "#22372f";
+      },
+      setActionBatchState(text, tone = "info") {
+        actionBatchStateEl.textContent = text;
+        actionBatchStateEl.style.color = tone === "warning" ? "#ffd27d" : tone === "error" ? "#ff8f8f" : "#99b3a6";
+        actionBatchStateEl.style.borderColor = tone === "warning" ? "#5a4620" : tone === "error" ? "#5a2020" : "#22372f";
       },
       setActionOptions(options = []) {
         actionSelectEl.innerHTML = "";
@@ -1097,6 +1104,7 @@
           shell2.appendLog(logger.success(result.message));
           shell2.setActionState(`Controlled Actions: ${result.message}`, "info");
         }
+        return result;
       } finally {
         shell2.setActionRunnerState({ disabled: false, label: "\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C" });
       }
@@ -1104,14 +1112,24 @@
     const executeAllControlledActions = async (shell2, actionIds = []) => {
       if (!actionIds.length) {
         shell2.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0434\u043B\u044F batch \u0437\u0430\u043F\u0443\u0441\u043A\u0430."));
+        shell2.setActionBatchState("Batch: \u043D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439", "warning");
         return;
       }
       shell2.appendLog(logger.info(`Batch \u0437\u0430\u043F\u0443\u0441\u043A safe actions: ${actionIds.length}`));
+      shell2.setActionBatchState(`Batch: \u0437\u0430\u043F\u0443\u0449\u0435\u043D (${actionIds.length} \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439)`, "info");
+      const stats = { total: actionIds.length, success: 0, warning: 0 };
       for (const actionId of actionIds) {
         shell2.appendLog(logger.info(`Batch action start: ${actionId}`));
-        await executeControlledAction(shell2, actionId);
+        const result = await executeControlledAction(shell2, actionId);
+        if (result?.ok) {
+          stats.success += 1;
+        } else {
+          stats.warning += 1;
+        }
       }
       shell2.appendLog(logger.success("Batch \u0437\u0430\u043F\u0443\u0441\u043A safe actions \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D."));
+      const batchTone = stats.warning > 0 ? "warning" : "info";
+      shell2.setActionBatchState(`Batch: \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D (${stats.success}/${stats.total} \u0443\u0441\u043F\u0435\u0448\u043D\u043E, \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0439: ${stats.warning})`, batchTone);
     };
     const shell = createShell({
       root,
