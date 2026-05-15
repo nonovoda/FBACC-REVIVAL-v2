@@ -6,6 +6,7 @@ import {
 import { authService } from './core/auth.js';
 import { fbApi } from './core/api.js';
 import { logger } from './core/logger.js';
+import { storage } from './core/storage.js';
 import { safeRemoveNode } from './core/utils.js';
 import { baseStyles } from './ui/styles.js';
 import { createShell } from './ui/shell.js';
@@ -28,6 +29,11 @@ const phase2Modules = [
   adsModule,
   diagnosticsModule
 ];
+
+const STORAGE_KEYS = {
+  selectedTab: 'selected_tab',
+  selectedContext: 'selected_context'
+};
 
 const mountStyles = () => {
   const style = document.createElement('style');
@@ -82,6 +88,8 @@ const createInstance = () => {
   const root = mountRoot();
   const token = authService.getAccessToken();
   const initialAdAccountId = authService.getCurrentAdAccountId();
+  const storedContext = storage.get(STORAGE_KEYS.selectedContext, {});
+  const storedTab = storage.get(STORAGE_KEYS.selectedTab, null);
 
   const loadModule = async (shell, moduleId) => {
     const selectedModule = phase2Modules.find((item) => item.id === moduleId);
@@ -130,10 +138,15 @@ const createInstance = () => {
     root,
     tabs: phase2Modules,
     initialContext: {
-      selectedAdAccountId: initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, '') : '',
-      selectedBusinessId: ''
+      selectedAdAccountId: storedContext?.selectedAdAccountId || (initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, '') : ''),
+      selectedBusinessId: storedContext?.selectedBusinessId || ''
+    },
+    initialTabId: storedTab,
+    onContextChange: (nextContext) => {
+      storage.set(STORAGE_KEYS.selectedContext, nextContext);
     },
     onSelect: (moduleId) => {
+      storage.set(STORAGE_KEYS.selectedTab, moduleId);
       loadModule(shell, moduleId);
     }
   });
@@ -211,7 +224,7 @@ const createInstance = () => {
     shell.appendLog(logger.warning('Нет доступных enabled controlled actions для startup pipeline.'));
   }
 
-  loadModule(shell, phase2Modules[0].id);
+  loadModule(shell, shell.initialTabId || phase2Modules[0].id);
 
   return {
     destroy() {

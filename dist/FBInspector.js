@@ -151,6 +151,35 @@
     error: (message, meta) => emit("error", message, meta)
   };
 
+  // src/FBInspector/core/storage.js
+  var KEY_PREFIX = "fbinspector:";
+  var buildKey = (key) => `${KEY_PREFIX}${key}`;
+  var safeParse = (value, fallback = null) => {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  };
+  var storage = {
+    get(key, fallback = null) {
+      const raw = window.localStorage.getItem(buildKey(key));
+      if (raw === null) {
+        return fallback;
+      }
+      return safeParse(raw, fallback);
+    },
+    set(key, value) {
+      window.localStorage.setItem(buildKey(key), JSON.stringify(value));
+    },
+    remove(key) {
+      window.localStorage.removeItem(buildKey(key));
+    },
+    clear() {
+      Object.keys(window.localStorage).filter((key) => key.startsWith(KEY_PREFIX)).forEach((key) => window.localStorage.removeItem(key));
+    }
+  };
+
   // src/FBInspector/core/utils.js
   var safeRemoveNode = (node) => {
     if (node && node.parentNode) {
@@ -172,7 +201,7 @@
 `;
 
   // src/FBInspector/ui/tabs.js
-  var createTabs = ({ root, tabs, onSelect }) => {
+  var createTabs = ({ root, tabs, onSelect, initialActiveTabId }) => {
     const wrapper = document.createElement("div");
     wrapper.style.display = "flex";
     wrapper.style.gap = "6px";
@@ -185,7 +214,8 @@
         button.style.color = tabId === id ? "#4dff8f" : "#c7e0d2";
       });
     };
-    tabs.forEach((tab, index) => {
+    let defaultActiveId = tabs[0]?.id ?? null;
+    tabs.forEach((tab) => {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = tab.title;
@@ -201,12 +231,16 @@
       };
       buttons.set(tab.id, button);
       wrapper.appendChild(button);
-      if (index === 0) {
-        setActiveTab(tab.id);
+      if (!defaultActiveId) {
+        defaultActiveId = tab.id;
       }
     });
+    const initialTabId = tabs.some((tab) => tab.id === initialActiveTabId) ? initialActiveTabId : defaultActiveId;
+    if (initialTabId) {
+      setActiveTab(initialTabId);
+    }
     root.appendChild(wrapper);
-    return { destroy: () => root.removeChild(wrapper), setActiveTab };
+    return { destroy: () => root.removeChild(wrapper), setActiveTab, initialTabId };
   };
 
   // src/FBInspector/ui/table.js
@@ -234,7 +268,7 @@
   };
 
   // src/FBInspector/ui/shell.js
-  var createShell = ({ root, tabs, onSelect, initialContext = {} }) => {
+  var createShell = ({ root, tabs, onSelect, initialContext = {}, initialTabId, onContextChange }) => {
     const container = document.createElement("div");
     container.innerHTML = `
     <div style="background:#0f1715;border:1px solid #2b433a;border-radius:14px;padding:14px;min-width:320px;max-width:560px;">
@@ -266,10 +300,20 @@
     const businessInput = container.querySelector('[data-role="business-input"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
-    const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect });
+    const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
     const tableUi = createTable({ root: tableRoot });
     adAccountInput.value = initialContext.selectedAdAccountId || "";
     businessInput.value = initialContext.selectedBusinessId || "";
+    const emitContext = () => {
+      if (typeof onContextChange === "function") {
+        onContextChange({
+          selectedAdAccountId: adAccountInput.value.trim(),
+          selectedBusinessId: businessInput.value.trim()
+        });
+      }
+    };
+    adAccountInput.addEventListener("change", emitContext);
+    businessInput.addEventListener("change", emitContext);
     return {
       appendLog(entry) {
         const line = `[${entry.ts}] [${entry.level}] ${entry.message}`;
@@ -287,12 +331,15 @@
         };
       },
       destroy() {
+        adAccountInput.removeEventListener("change", emitContext);
+        businessInput.removeEventListener("change", emitContext);
         tabsUi.destroy();
         tableUi.destroy();
         if (container.parentNode === root) {
           root.removeChild(container);
         }
-      }
+      },
+      initialTabId: tabsUi.initialTabId
     };
   };
 
@@ -802,6 +849,10 @@
     adsModule,
     diagnosticsModule
   ];
+  var STORAGE_KEYS = {
+    selectedTab: "selected_tab",
+    selectedContext: "selected_context"
+  };
   var mountStyles = () => {
     const style = document.createElement("style");
     style.id = FBINSPECTOR_STYLE_ID;
@@ -847,6 +898,8 @@
     const root = mountRoot();
     const token = authService.getAccessToken();
     const initialAdAccountId = authService.getCurrentAdAccountId();
+    const storedContext = storage.get(STORAGE_KEYS.selectedContext, {});
+    const storedTab = storage.get(STORAGE_KEYS.selectedTab, null);
     const loadModule = async (shell2, moduleId) => {
       const selectedModule = phase2Modules.find((item) => item.id === moduleId);
       if (!selectedModule) {
@@ -888,10 +941,15 @@
       root,
       tabs: phase2Modules,
       initialContext: {
-        selectedAdAccountId: initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, "") : "",
-        selectedBusinessId: ""
+        selectedAdAccountId: storedContext?.selectedAdAccountId || (initialAdAccountId ? String(initialAdAccountId).replace(/^act_/, "") : ""),
+        selectedBusinessId: storedContext?.selectedBusinessId || ""
+      },
+      initialTabId: storedTab,
+      onContextChange: (nextContext) => {
+        storage.set(STORAGE_KEYS.selectedContext, nextContext);
       },
       onSelect: (moduleId) => {
+        storage.set(STORAGE_KEYS.selectedTab, moduleId);
         loadModule(shell, moduleId);
       }
     });
@@ -964,7 +1022,7 @@
     } else {
       shell.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 enabled controlled actions \u0434\u043B\u044F startup pipeline."));
     }
-    loadModule(shell, phase2Modules[0].id);
+    loadModule(shell, shell.initialTabId || phase2Modules[0].id);
     return {
       destroy() {
         shell.appendLog(logger.warning("Destroy \u0432\u044B\u0437\u0432\u0430\u043D, \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E cleanup"));

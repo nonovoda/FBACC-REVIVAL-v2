@@ -1,7 +1,7 @@
 import { createTabs } from './tabs.js';
 import { createTable } from './table.js';
 
-export const createShell = ({ root, tabs, onSelect, initialContext = {} }) => {
+export const createShell = ({ root, tabs, onSelect, initialContext = {}, initialTabId, onContextChange }) => {
   const container = document.createElement('div');
   container.innerHTML = `
     <div style="background:#0f1715;border:1px solid #2b433a;border-radius:14px;padding:14px;min-width:320px;max-width:560px;">
@@ -35,10 +35,22 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {} }) => {
   const tabsRoot = container.querySelector('[data-role="tabs"]');
   const tableRoot = container.querySelector('[data-role="table"]');
 
-  const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect });
+  const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
   const tableUi = createTable({ root: tableRoot });
   adAccountInput.value = initialContext.selectedAdAccountId || '';
   businessInput.value = initialContext.selectedBusinessId || '';
+
+  const emitContext = () => {
+    if (typeof onContextChange === 'function') {
+      onContextChange({
+        selectedAdAccountId: adAccountInput.value.trim(),
+        selectedBusinessId: businessInput.value.trim()
+      });
+    }
+  };
+
+  adAccountInput.addEventListener('change', emitContext);
+  businessInput.addEventListener('change', emitContext);
 
   return {
     appendLog(entry) {
@@ -56,11 +68,14 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {} }) => {
       };
     },
     destroy() {
+      adAccountInput.removeEventListener('change', emitContext);
+      businessInput.removeEventListener('change', emitContext);
       tabsUi.destroy();
       tableUi.destroy();
       if (container.parentNode === root) {
         root.removeChild(container);
       }
-    }
+    },
+    initialTabId: tabsUi.initialTabId
   };
 };

@@ -162,6 +162,15 @@
 3. В registry добавлена сводка `summarizeEnabledByModule()` для phase-диагностики.
 4. Startup лог переведён на summary-by-module вместо точечного счётчика одного модуля.
 
+## Roadmap check (промежуточно)
+
+- ✅ Core inspector tabs работают в read-only режиме (`accounts/businesses/pages/billing/ads/diagnostics`).
+- ✅ Billing/Ads context guard и fallback-логика для unsupported Graph fields работают.
+- ✅ Phase 3 controlled-actions foundation (registry/policy/audit/pipeline/confirm/precheck) собран.
+- ✅ Local persistence частично реализован: selected tab + selected context (ad account/business).
+- ⏳ Controlled actions UI contracts (action cards / explicit confirm UI) ещё не реализованы.
+- ⏳ Business/destructive actions не внедрялись (и остаются отключёнными по правилам безопасности).
+
 ## Phase 3 — следующий batch реализован (4 шага)
 
 1. Вынесен executor runner `runActionExecutor()` для единообразного исполнения action handlers.
