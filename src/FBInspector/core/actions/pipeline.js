@@ -31,6 +31,29 @@ export const actionPipeline = {
       };
     }
 
+    const confirmResult = {
+      required: Boolean(action?.destructive),
+      confirmed: !action?.destructive,
+      mode: action?.destructive ? 'manual_required' : 'auto_confirm_read_only'
+    };
+
+    logger(actionAudit.createEntry({
+      stage: 'confirm',
+      actionId,
+      status: confirmResult.confirmed ? 'ok' : 'blocked',
+      context,
+      details: confirmResult
+    }));
+
+    if (!confirmResult.confirmed) {
+      return {
+        ok: false,
+        stage: 'confirm',
+        reasonCode: 'CONFIRMATION_REQUIRED',
+        reason: 'Для этого действия требуется явное подтверждение.'
+      };
+    }
+
     let executionResult = null;
     if (typeof execute === 'function') {
       executionResult = await execute(action, context);

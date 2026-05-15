@@ -119,3 +119,10 @@
 2. Startup action selection переведён на context-aware функцию выбора из enabled actions.
 3. Controlled actions в startup снова зафиксированы как `disabled by default` (`phase3ActionsEnabled: false`).
 4. При отключённом policy flag UI логирует явный warning и не запускает execution pipeline.
+
+## Phase 3 — следующий шаг реализован
+
+- В pipeline добавлен явный этап `confirm` между `policy` и `execution`.
+- Для read-only / non-destructive action используется auto-confirm (`auto_confirm_read_only`).
+- Для destructive action предусмотрена блокировка с `CONFIRMATION_REQUIRED` до явного подтверждения.
+- Audit trail теперь включает: `resolve` → `policy` → `confirm` → `execution`.

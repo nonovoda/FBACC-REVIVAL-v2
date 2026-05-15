@@ -625,6 +625,26 @@
           reason: decision.reason
         };
       }
+      const confirmResult = {
+        required: Boolean(action?.destructive),
+        confirmed: !action?.destructive,
+        mode: action?.destructive ? "manual_required" : "auto_confirm_read_only"
+      };
+      logger2(actionAudit.createEntry({
+        stage: "confirm",
+        actionId,
+        status: confirmResult.confirmed ? "ok" : "blocked",
+        context,
+        details: confirmResult
+      }));
+      if (!confirmResult.confirmed) {
+        return {
+          ok: false,
+          stage: "confirm",
+          reasonCode: "CONFIRMATION_REQUIRED",
+          reason: "\u0414\u043B\u044F \u044D\u0442\u043E\u0433\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u0442\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u044F\u0432\u043D\u043E\u0435 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u0435."
+        };
+      }
       let executionResult = null;
       if (typeof execute === "function") {
         executionResult = await execute(action, context);
