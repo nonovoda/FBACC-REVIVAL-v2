@@ -142,3 +142,9 @@
 1. Добавлен safe action `diagnostics.load_snapshot` (read-only, non-destructive).
 2. Execution handler расширен поддержкой `diagnostics.load_snapshot`.
 3. Контракт безопасности unchanged: controlled actions по умолчанию disabled, destructive actions не включены.
+
+## Phase 3 — batch ускорения реализован (3 шага)
+
+1. В action registry добавлена выборка `listByModule(moduleId)` для модульной оркестрации действий.
+2. В runtime добавлена карта `actionId -> executor` (modular executors), убрана цепочка множественных `if` для startup execution.
+3. Добавлены служебные phase-метрики в лог startup (`enabled actions` по модулю) для ускоренной диагностики rollout.

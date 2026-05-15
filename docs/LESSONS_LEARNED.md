@@ -45,3 +45,4 @@
 - Policy-блокировка должна отражаться как `warning-state`, а не как runtime error.
 - Для startup использовать только `enabled` actions из реестра; выбор action должен быть context-aware.
 - Перед execution должен быть отдельный confirm-stage; для read-only возможен auto-confirm, для destructive — только явное подтверждение.
+- Для масштабирования Phase 3 использовать mapping `actionId -> executor`, чтобы расширять 3–4 действия за batch без процедурного роста кода.

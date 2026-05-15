@@ -50,6 +50,14 @@ const buildActionResult = ({ mode = 'read_only', rows = [], warnings = [], messa
   message
 });
 
+const createActionExecutors = ({ accessToken, context, logDebug }) => ({
+  'accounts.load_snapshot': async () => accountsModule.load({ accessToken }),
+  'billing.load_snapshot': async () => billingModule.load({ accessToken, context, logDebug }),
+  'businesses.load_snapshot': async () => businessesModule.load({ accessToken }),
+  'pages.load_snapshot': async () => pagesModule.load({ accessToken }),
+  'diagnostics.load_snapshot': async () => diagnosticsModule.load({ accessToken })
+});
+
 const selectStartupActionId = (context = {}, enabledActions = []) => {
   if (!Array.isArray(enabledActions) || !enabledActions.length) {
     return null;
@@ -137,6 +145,7 @@ const createInstance = () => {
   const enabledActions = actionsRegistry.listEnabled();
   shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: enabled действий ${enabledActions.length}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: enabled ads actions ${actionsRegistry.listByModule('ads').filter((item) => item.enabled).length}`));
   const startupContext = shell.getContext();
   const startupActionId = selectStartupActionId(startupContext, enabledActions);
 
@@ -153,30 +162,12 @@ const createInstance = () => {
           shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
         };
         const startedAt = Date.now();
-
-        if (action.id === 'accounts.load_snapshot') {
-          const rows = await accountsModule.load({ accessToken: token });
-          return buildActionResult({ rows, message: 'Accounts snapshot загружен.', startedAt });
-        }
-
-        if (action.id === 'billing.load_snapshot') {
-          const rows = await billingModule.load({ accessToken: token, context, logDebug });
-          return buildActionResult({ rows, message: 'Billing snapshot загружен.', startedAt });
-        }
-
-        if (action.id === 'businesses.load_snapshot') {
-          const rows = await businessesModule.load({ accessToken: token });
-          return buildActionResult({ rows, message: 'Businesses snapshot загружен.', startedAt });
-        }
-
-        if (action.id === 'pages.load_snapshot') {
-          const rows = await pagesModule.load({ accessToken: token });
-          return buildActionResult({ rows, message: 'Pages snapshot загружен.', startedAt });
-        }
-
-        if (action.id === 'diagnostics.load_snapshot') {
-          const rows = await diagnosticsModule.load({ accessToken: token });
-          return buildActionResult({ rows, message: 'Diagnostics snapshot загружен.', startedAt });
+        const actionExecutors = createActionExecutors({ accessToken: token, context, logDebug });
+        const executeHandler = actionExecutors[action.id];
+        if (typeof executeHandler === 'function') {
+          const rows = await executeHandler();
+          const actionTitle = action.title || action.id;
+          return buildActionResult({ rows, message: `${actionTitle} выполнен.`, startedAt });
         }
 
         return buildActionResult({

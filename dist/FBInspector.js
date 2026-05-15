@@ -553,6 +553,9 @@
     },
     getById(actionId) {
       return registry.find((action) => action.id === actionId) ?? null;
+    },
+    listByModule(moduleId) {
+      return registry.filter((action) => action.module === moduleId).map((action) => ({ ...action }));
     }
   };
 
@@ -708,6 +711,13 @@
     warnings,
     message
   });
+  var createActionExecutors = ({ accessToken, context, logDebug }) => ({
+    "accounts.load_snapshot": async () => accountsModule.load({ accessToken }),
+    "billing.load_snapshot": async () => billingModule.load({ accessToken, context, logDebug }),
+    "businesses.load_snapshot": async () => businessesModule.load({ accessToken }),
+    "pages.load_snapshot": async () => pagesModule.load({ accessToken }),
+    "diagnostics.load_snapshot": async () => diagnosticsModule.load({ accessToken })
+  });
   var selectStartupActionId = (context = {}, enabledActions = []) => {
     if (!Array.isArray(enabledActions) || !enabledActions.length) {
       return null;
@@ -782,6 +792,7 @@
     const enabledActions = actionsRegistry.listEnabled();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${enabledActions.length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: enabled ads actions ${actionsRegistry.listByModule("ads").filter((item) => item.enabled).length}`));
     const startupContext = shell.getContext();
     const startupActionId = selectStartupActionId(startupContext, enabledActions);
     if (!phase3Policy.phase3ActionsEnabled) {
@@ -797,25 +808,12 @@
             shell.appendLog(logger.info(`${message}: ${JSON.stringify(meta)}`));
           };
           const startedAt = Date.now();
-          if (action.id === "accounts.load_snapshot") {
-            const rows = await accountsModule.load({ accessToken: token });
-            return buildActionResult({ rows, message: "Accounts snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
-          }
-          if (action.id === "billing.load_snapshot") {
-            const rows = await billingModule.load({ accessToken: token, context, logDebug });
-            return buildActionResult({ rows, message: "Billing snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
-          }
-          if (action.id === "businesses.load_snapshot") {
-            const rows = await businessesModule.load({ accessToken: token });
-            return buildActionResult({ rows, message: "Businesses snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
-          }
-          if (action.id === "pages.load_snapshot") {
-            const rows = await pagesModule.load({ accessToken: token });
-            return buildActionResult({ rows, message: "Pages snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
-          }
-          if (action.id === "diagnostics.load_snapshot") {
-            const rows = await diagnosticsModule.load({ accessToken: token });
-            return buildActionResult({ rows, message: "Diagnostics snapshot \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D.", startedAt });
+          const actionExecutors = createActionExecutors({ accessToken: token, context, logDebug });
+          const executeHandler = actionExecutors[action.id];
+          if (typeof executeHandler === "function") {
+            const rows = await executeHandler();
+            const actionTitle = action.title || action.id;
+            return buildActionResult({ rows, message: `${actionTitle} \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D.`, startedAt });
           }
           return buildActionResult({
             mode: "dry_run",

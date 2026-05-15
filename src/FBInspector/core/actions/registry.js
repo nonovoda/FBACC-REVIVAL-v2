@@ -79,5 +79,8 @@ export const actionsRegistry = {
   },
   getById(actionId) {
     return registry.find((action) => action.id === actionId) ?? null;
+  },
+  listByModule(moduleId) {
+    return registry.filter((action) => action.module === moduleId).map((action) => ({ ...action }));
   }
 };
