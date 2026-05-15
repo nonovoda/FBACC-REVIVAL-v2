@@ -281,6 +281,10 @@
       <div data-role="tabs"></div>
       <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0438\u043D\u0438\u0446\u0438\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u0438...</div>
       <div data-role="action-batch-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#99b3a6;">Batch: \u043D\u0435 \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u043B\u0441\u044F</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button data-role="copy-json-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C JSON</button>
+        <button data-role="clear-log-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C \u043B\u043E\u0433</button>
+      </div>
       <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
         <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
           Safe Action
@@ -315,6 +319,8 @@
     const businessInput = container.querySelector('[data-role="business-input"]');
     const actionStateEl = container.querySelector('[data-role="action-state"]');
     const actionBatchStateEl = container.querySelector('[data-role="action-batch-state"]');
+    const copyJsonBtnEl = container.querySelector('[data-role="copy-json-btn"]');
+    const clearLogBtnEl = container.querySelector('[data-role="clear-log-btn"]');
     const actionSelectEl = container.querySelector('[data-role="action-select"]');
     const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
     const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
@@ -324,6 +330,7 @@
     const tableRoot = container.querySelector('[data-role="table"]');
     const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
     const tableUi = createTable({ root: tableRoot });
+    let latestRows = [];
     adAccountInput.value = initialContext.selectedAdAccountId || "";
     businessInput.value = initialContext.selectedBusinessId || "";
     const emitContext = () => {
@@ -346,6 +353,21 @@
       }
     };
     actionsEnabledToggleEl.addEventListener("change", emitActionsPolicyToggle);
+    copyJsonBtnEl.onclick = async () => {
+      const payload = JSON.stringify(latestRows, null, 2);
+      try {
+        await navigator.clipboard.writeText(payload);
+        logEl.textContent += `[${(/* @__PURE__ */ new Date()).toLocaleTimeString("ru-RU", { hour12: false })}] [success] JSON \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D \u0432 \u0431\u0443\u0444\u0435\u0440 \u043E\u0431\u043C\u0435\u043D\u0430
+`;
+      } catch {
+        logEl.textContent += `[${(/* @__PURE__ */ new Date()).toLocaleTimeString("ru-RU", { hour12: false })}] [warning] \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C JSON \u0447\u0435\u0440\u0435\u0437 clipboard API
+`;
+      }
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    clearLogBtnEl.onclick = () => {
+      logEl.textContent = "";
+    };
     const clearContext = () => {
       adAccountInput.value = "";
       businessInput.value = "";
@@ -360,6 +382,7 @@
         logEl.scrollTop = logEl.scrollHeight;
       },
       renderRows(rows) {
+        latestRows = Array.isArray(rows) ? rows : [];
         tableUi.render(rows);
       },
       getContext() {

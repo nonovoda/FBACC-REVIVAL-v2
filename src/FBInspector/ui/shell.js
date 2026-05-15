@@ -14,6 +14,10 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       <div data-role="tabs"></div>
       <div data-role="action-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#c7e0d2;">Controlled Actions: ожидание инициализации...</div>
       <div data-role="action-batch-state" style="margin-bottom:8px;background:#0b1210;border:1px solid #22372f;border-radius:10px;padding:8px;font-size:11px;color:#99b3a6;">Batch: не запускался</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button data-role="copy-json-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">Копировать JSON</button>
+        <button data-role="clear-log-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">Очистить лог</button>
+      </div>
       <div data-role="action-controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:end;">
         <label style="display:flex;flex-direction:column;gap:4px;flex:1;font-size:11px;color:#c7e0d2;">
           Safe Action
@@ -49,6 +53,8 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
   const businessInput = container.querySelector('[data-role="business-input"]');
   const actionStateEl = container.querySelector('[data-role="action-state"]');
   const actionBatchStateEl = container.querySelector('[data-role="action-batch-state"]');
+  const copyJsonBtnEl = container.querySelector('[data-role="copy-json-btn"]');
+  const clearLogBtnEl = container.querySelector('[data-role="clear-log-btn"]');
   const actionSelectEl = container.querySelector('[data-role="action-select"]');
   const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
   const runAllActionBtnEl = container.querySelector('[data-role="run-all-actions-btn"]');
@@ -59,6 +65,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
 
   const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
   const tableUi = createTable({ root: tableRoot });
+  let latestRows = [];
   adAccountInput.value = initialContext.selectedAdAccountId || '';
   businessInput.value = initialContext.selectedBusinessId || '';
 
@@ -86,6 +93,21 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
 
   actionsEnabledToggleEl.addEventListener('change', emitActionsPolicyToggle);
 
+  copyJsonBtnEl.onclick = async () => {
+    const payload = JSON.stringify(latestRows, null, 2);
+    try {
+      await navigator.clipboard.writeText(payload);
+      logEl.textContent += `[${new Date().toLocaleTimeString('ru-RU', { hour12: false })}] [success] JSON скопирован в буфер обмена\n`;
+    } catch {
+      logEl.textContent += `[${new Date().toLocaleTimeString('ru-RU', { hour12: false })}] [warning] Не удалось скопировать JSON через clipboard API\n`;
+    }
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  clearLogBtnEl.onclick = () => {
+    logEl.textContent = '';
+  };
+
   const clearContext = () => {
     adAccountInput.value = '';
     businessInput.value = '';
@@ -101,6 +123,7 @@ export const createShell = ({ root, tabs, onSelect, initialContext = {}, initial
       logEl.scrollTop = logEl.scrollHeight;
     },
     renderRows(rows) {
+      latestRows = Array.isArray(rows) ? rows : [];
       tableUi.render(rows);
     },
     getContext() {

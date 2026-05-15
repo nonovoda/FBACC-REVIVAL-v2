@@ -54,3 +54,4 @@
 - После завершения foundation нужно добавлять user-visible capabilities (например manual safe action run), а не только infra-изменения.
 - Автоподстановка ad account в UI по auth-context может давать ложный контекст; safer default — пустое поле + явный ручной выбор.
 - Для batch действий нужен отдельный UI progress/result state, иначе оператору сложно понять итог без чтения полного лога.
+- Для оператора полезны быстрые utility-действия в UI (copy/export/clear-log), чтобы ускорять ручную работу без изменения бизнес-логики.
