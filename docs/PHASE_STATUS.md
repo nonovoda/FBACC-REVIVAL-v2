@@ -112,3 +112,10 @@
   - `Billing` загружается, fallback по unsupported полю (`billing_status`) отрабатывает штатно;
   - `Ads` загружается корректно.
 - Критичных ошибок по текущему этапу не выявлено.
+
+## Phase 3 — следующий этап (batch) реализован
+
+1. В action registry добавлен `listEnabled()` для безопасного отбора только разрешённых startup actions.
+2. Startup action selection переведён на context-aware функцию выбора из enabled actions.
+3. Controlled actions в startup снова зафиксированы как `disabled by default` (`phase3ActionsEnabled: false`).
+4. При отключённом policy flag UI логирует явный warning и не запускает execution pipeline.

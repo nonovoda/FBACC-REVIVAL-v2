@@ -43,3 +43,4 @@
 - Controlled actions должны быть `disabled by default` до явного включения.
 - Action pipeline обязан логировать стадии: `resolve` / `policy` / `execution`.
 - Policy-блокировка должна отражаться как `warning-state`, а не как runtime error.
+- Для startup использовать только `enabled` actions из реестра; выбор action должен быть context-aware.

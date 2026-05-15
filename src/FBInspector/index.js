@@ -50,6 +50,22 @@ const buildActionResult = ({ mode = 'read_only', rows = [], warnings = [], messa
   message
 });
 
+const selectStartupActionId = (context = {}, enabledActions = []) => {
+  if (!Array.isArray(enabledActions) || !enabledActions.length) {
+    return null;
+  }
+
+  if (context.selectedAdAccountId && enabledActions.some((action) => action.id === 'billing.load_snapshot')) {
+    return 'billing.load_snapshot';
+  }
+
+  if (enabledActions.some((action) => action.id === 'accounts.load_snapshot')) {
+    return 'accounts.load_snapshot';
+  }
+
+  return enabledActions[0].id;
+};
+
 const createInstance = () => {
   const style = mountStyles();
   const root = mountRoot();
@@ -114,15 +130,19 @@ const createInstance = () => {
   shell.appendLog(logger.info('Shell смонтирован'));
 
   const phase3Policy = {
-    phase3ActionsEnabled: true,
+    phase3ActionsEnabled: false,
     allowHighRiskActions: false
   };
   const registeredActions = actionsRegistry.list();
+  const enabledActions = actionsRegistry.listEnabled();
   shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: enabled действий ${enabledActions.length}`));
   const startupContext = shell.getContext();
-  const startupActionId = startupContext.selectedAdAccountId ? 'billing.load_snapshot' : 'accounts.load_snapshot';
+  const startupActionId = selectStartupActionId(startupContext, enabledActions);
 
-  if (registeredActions.length > 0) {
+  if (!phase3Policy.phase3ActionsEnabled) {
+    shell.appendLog(logger.warning('Controlled actions отключены по умолчанию. Для запуска включите policy flag phase3ActionsEnabled.'));
+  } else if (startupActionId) {
     actionPipeline.run({
       actionId: startupActionId,
       context: startupContext,
@@ -169,6 +189,8 @@ const createInstance = () => {
         shell.appendLog(logger.success(result.message));
       }
     });
+  } else {
+    shell.appendLog(logger.warning('Нет доступных enabled controlled actions для startup pipeline.'));
   }
 
   loadModule(shell, phase2Modules[0].id);

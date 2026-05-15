@@ -539,6 +539,9 @@
     list() {
       return registry.map((action) => ({ ...action }));
     },
+    listEnabled() {
+      return registry.filter((action) => action.enabled).map((action) => ({ ...action }));
+    },
     getById(actionId) {
       return registry.find((action) => action.id === actionId) ?? null;
     }
@@ -676,6 +679,18 @@
     warnings,
     message
   });
+  var selectStartupActionId = (context = {}, enabledActions = []) => {
+    if (!Array.isArray(enabledActions) || !enabledActions.length) {
+      return null;
+    }
+    if (context.selectedAdAccountId && enabledActions.some((action) => action.id === "billing.load_snapshot")) {
+      return "billing.load_snapshot";
+    }
+    if (enabledActions.some((action) => action.id === "accounts.load_snapshot")) {
+      return "accounts.load_snapshot";
+    }
+    return enabledActions[0].id;
+  };
   var createInstance = () => {
     const style = mountStyles();
     const root = mountRoot();
@@ -731,14 +746,18 @@
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
     const phase3Policy = {
-      phase3ActionsEnabled: true,
+      phase3ActionsEnabled: false,
       allowHighRiskActions: false
     };
     const registeredActions = actionsRegistry.list();
+    const enabledActions = actionsRegistry.listEnabled();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${enabledActions.length}`));
     const startupContext = shell.getContext();
-    const startupActionId = startupContext.selectedAdAccountId ? "billing.load_snapshot" : "accounts.load_snapshot";
-    if (registeredActions.length > 0) {
+    const startupActionId = selectStartupActionId(startupContext, enabledActions);
+    if (!phase3Policy.phase3ActionsEnabled) {
+      shell.appendLog(logger.warning("Controlled actions \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E. \u0414\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u0435 policy flag phase3ActionsEnabled."));
+    } else if (startupActionId) {
       actionPipeline.run({
         actionId: startupActionId,
         context: startupContext,
@@ -780,6 +799,8 @@
           shell.appendLog(logger.success(result.message));
         }
       });
+    } else {
+      shell.appendLog(logger.warning("\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 enabled controlled actions \u0434\u043B\u044F startup pipeline."));
     }
     loadModule(shell, phase2Modules[0].id);
     return {

@@ -65,6 +65,9 @@ export const actionsRegistry = {
   list() {
     return registry.map((action) => ({ ...action }));
   },
+  listEnabled() {
+    return registry.filter((action) => action.enabled).map((action) => ({ ...action }));
+  },
   getById(actionId) {
     return registry.find((action) => action.id === actionId) ?? null;
   }
