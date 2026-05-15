@@ -4,6 +4,7 @@ import { actionAudit } from './audit.js';
 
 export const actionPipeline = {
   async run({ actionId, context = {}, policy, logger, execute }) {
+    const startedAt = Date.now();
     const action = actionsRegistry.getById(actionId);
     logger(actionAudit.createEntry({
       stage: 'resolve',
@@ -76,12 +77,32 @@ export const actionPipeline = {
     }
 
     let executionResult = null;
-    if (typeof execute === 'function') {
-      executionResult = await execute(action, context);
-    } else {
-      executionResult = {
-        mode: 'dry_run',
-        message: 'Execution handler не передан. Выполнен dry-run.'
+    try {
+      if (typeof execute === 'function') {
+        executionResult = await execute(action, context);
+      } else {
+        executionResult = {
+          mode: 'dry_run',
+          message: 'Execution handler не передан. Выполнен dry-run.'
+        };
+      }
+    } catch (error) {
+      logger(actionAudit.createEntry({
+        stage: 'execution',
+        actionId,
+        status: 'error',
+        context,
+        details: {
+          message: error?.message || 'Ошибка execution handler',
+          raw: error
+        }
+      }));
+
+      return {
+        ok: false,
+        stage: 'execution',
+        reasonCode: 'EXECUTION_ERROR',
+        reason: error?.message || 'Ошибка выполнения действия'
       };
     }
 
@@ -97,6 +118,7 @@ export const actionPipeline = {
       ok: true,
       stage: 'execution',
       message: 'Pipeline завершён успешно.',
+      durationMs: Math.max(0, Date.now() - startedAt),
       result: executionResult
     };
   }

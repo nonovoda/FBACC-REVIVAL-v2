@@ -48,3 +48,4 @@
 - Для масштабирования Phase 3 использовать mapping `actionId -> executor`, чтобы расширять 3–4 действия за batch без процедурного роста кода.
 - Добавлять policy allowlist (`allowedActionIds`) для контролируемого rollout: даже enabled actions не должны выполняться вне явного списка разрешений.
 - Pipeline должен делать precheck `action.enabled` перед execution: disabled action блокируется предсказуемо и логируется отдельной стадией.
+- Для rollout-диагностики держать метрики `enabled/read-only/risk-summary` и capability matrix в актуальном состоянии.

@@ -569,6 +569,22 @@
         }
         return acc;
       }, {});
+    },
+    listReadonlyEnabled() {
+      return registry.filter((action) => action.enabled && !action.destructive).map((action) => ({ ...action }));
+    },
+    summarizeEnabledByRisk() {
+      return registry.reduce((acc, action) => {
+        if (!action.enabled) {
+          return acc;
+        }
+        const risk = action.riskLevel || "unknown";
+        if (!acc[risk]) {
+          acc[risk] = 0;
+        }
+        acc[risk] += 1;
+        return acc;
+      }, {});
     }
   };
 
@@ -630,6 +646,7 @@
   // src/FBInspector/core/actions/pipeline.js
   var actionPipeline = {
     async run({ actionId, context = {}, policy, logger: logger2, execute }) {
+      const startedAt = Date.now();
       const action = actionsRegistry.getById(actionId);
       logger2(actionAudit.createEntry({
         stage: "resolve",
@@ -694,12 +711,31 @@
         };
       }
       let executionResult = null;
-      if (typeof execute === "function") {
-        executionResult = await execute(action, context);
-      } else {
-        executionResult = {
-          mode: "dry_run",
-          message: "Execution handler \u043D\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D. \u0412\u044B\u043F\u043E\u043B\u043D\u0435\u043D dry-run."
+      try {
+        if (typeof execute === "function") {
+          executionResult = await execute(action, context);
+        } else {
+          executionResult = {
+            mode: "dry_run",
+            message: "Execution handler \u043D\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D. \u0412\u044B\u043F\u043E\u043B\u043D\u0435\u043D dry-run."
+          };
+        }
+      } catch (error) {
+        logger2(actionAudit.createEntry({
+          stage: "execution",
+          actionId,
+          status: "error",
+          context,
+          details: {
+            message: error?.message || "\u041E\u0448\u0438\u0431\u043A\u0430 execution handler",
+            raw: error
+          }
+        }));
+        return {
+          ok: false,
+          stage: "execution",
+          reasonCode: "EXECUTION_ERROR",
+          reason: error?.message || "\u041E\u0448\u0438\u0431\u043A\u0430 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F"
         };
       }
       logger2(actionAudit.createEntry({
@@ -713,6 +749,7 @@
         ok: true,
         stage: "execution",
         message: "Pipeline \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D \u0443\u0441\u043F\u0435\u0448\u043D\u043E.",
+        durationMs: Math.max(0, Date.now() - startedAt),
         result: executionResult
       };
     }
@@ -852,10 +889,14 @@
     };
     const registeredActions = actionsRegistry.list();
     const enabledActions = actionsRegistry.listEnabled();
+    const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();
     const summaryByModule = actionsRegistry.summarizeEnabledByModule();
+    const summaryByRisk = actionsRegistry.summarizeEnabledByRisk();
     shell.appendLog(logger.info(`Phase 3 foundation: \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${registeredActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${enabledActions.length}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: read-only enabled \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 ${readonlyEnabledActions.length}`));
     shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
+    shell.appendLog(logger.info(`Phase 3 foundation: summary by risk ${JSON.stringify(summaryByRisk)}`));
     shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
     const startupContext = shell.getContext();
     const startupActionId = selectStartupActionId(startupContext, enabledActions);
@@ -896,6 +937,7 @@
         if (!result.ok) {
           shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
         } else {
+          shell.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
           shell.appendLog(logger.success(result.message));
         }
       });

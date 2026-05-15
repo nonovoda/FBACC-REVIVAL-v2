@@ -95,5 +95,21 @@ export const actionsRegistry = {
       }
       return acc;
     }, {});
+  },
+  listReadonlyEnabled() {
+    return registry.filter((action) => action.enabled && !action.destructive).map((action) => ({ ...action }));
+  },
+  summarizeEnabledByRisk() {
+    return registry.reduce((acc, action) => {
+      if (!action.enabled) {
+        return acc;
+      }
+      const risk = action.riskLevel || 'unknown';
+      if (!acc[risk]) {
+        acc[risk] = 0;
+      }
+      acc[risk] += 1;
+      return acc;
+    }, {});
   }
 };

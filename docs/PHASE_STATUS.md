@@ -161,3 +161,11 @@
 2. В pipeline добавлен `precheck` stage (блокирует execution для disabled actions в registry).
 3. В registry добавлена сводка `summarizeEnabledByModule()` для phase-диагностики.
 4. Startup лог переведён на summary-by-module вместо точечного счётчика одного модуля.
+
+## Phase 3 — расширенный batch реализован (5 шагов)
+
+1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.
+2. В pipeline добавлена обработка `execution` ошибок с audit-логом `execution:error` и кодом `EXECUTION_ERROR`.
+3. В pipeline возвращается метрика `durationMs` для end-to-end времени выполнения действия.
+4. В startup лог добавлены расширенные метрики rollout: read-only enabled count и summary by risk.
+5. Добавлен документ `docs/ACTION_CAPABILITY_MATRIX.md` с текущей матрицей допустимых action-ов и правилами применения.

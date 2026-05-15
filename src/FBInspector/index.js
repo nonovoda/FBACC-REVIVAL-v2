@@ -152,10 +152,14 @@ const createInstance = () => {
   };
   const registeredActions = actionsRegistry.list();
   const enabledActions = actionsRegistry.listEnabled();
+  const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();
   const summaryByModule = actionsRegistry.summarizeEnabledByModule();
+  const summaryByRisk = actionsRegistry.summarizeEnabledByRisk();
   shell.appendLog(logger.info(`Phase 3 foundation: зарегистрировано действий ${registeredActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: enabled действий ${enabledActions.length}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: read-only enabled действий ${readonlyEnabledActions.length}`));
   shell.appendLog(logger.info(`Phase 3 foundation: summary by module ${JSON.stringify(summaryByModule)}`));
+  shell.appendLog(logger.info(`Phase 3 foundation: summary by risk ${JSON.stringify(summaryByRisk)}`));
   shell.appendLog(logger.info(`Phase 3 foundation: action catalog ${JSON.stringify(enabledActions.map(getActionMetadata))}`));
   const startupContext = shell.getContext();
   const startupActionId = selectStartupActionId(startupContext, enabledActions);
@@ -198,6 +202,7 @@ const createInstance = () => {
       if (!result.ok) {
         shell.appendLog(logger.warning(`Action pipeline: ${result.reason}`));
       } else {
+        shell.appendLog(logger.info(`Action pipeline duration: ${result.durationMs}ms`));
         shell.appendLog(logger.success(result.message));
       }
     });
