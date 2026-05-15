@@ -287,6 +287,10 @@
         </label>
         <button data-role="run-action-btn" type="button" style="background:#121f1b;border:1px solid #2f4a40;border-radius:9px;padding:8px 10px;color:#e8fff0;font-size:12px;cursor:pointer;">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C</button>
       </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#c7e0d2;margin-bottom:8px;">
+        <input data-role="actions-enabled-toggle" type="checkbox" />
+        \u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C safe actions (\u0442\u043E\u043B\u044C\u043A\u043E read-only)
+      </label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:#c7e0d2;">
           ID \u0440\u0435\u043A\u043B\u0430\u043C\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430
@@ -309,6 +313,7 @@
     const actionStateEl = container.querySelector('[data-role="action-state"]');
     const actionSelectEl = container.querySelector('[data-role="action-select"]');
     const runActionBtnEl = container.querySelector('[data-role="run-action-btn"]');
+    const actionsEnabledToggleEl = container.querySelector('[data-role="actions-enabled-toggle"]');
     const tabsRoot = container.querySelector('[data-role="tabs"]');
     const tableRoot = container.querySelector('[data-role="table"]');
     const tabsUi = createTabs({ root: tabsRoot, tabs, onSelect, initialActiveTabId: initialTabId });
@@ -325,6 +330,16 @@
     };
     adAccountInput.addEventListener("change", emitContext);
     businessInput.addEventListener("change", emitContext);
+    const emitActionsPolicyToggle = () => {
+      if (typeof onContextChange === "function") {
+        onContextChange({
+          selectedAdAccountId: adAccountInput.value.trim(),
+          selectedBusinessId: businessInput.value.trim(),
+          phase3ActionsEnabled: Boolean(actionsEnabledToggleEl.checked)
+        });
+      }
+    };
+    actionsEnabledToggleEl.addEventListener("change", emitActionsPolicyToggle);
     return {
       appendLog(entry) {
         const line = `[${entry.ts}] [${entry.level}] ${entry.message}`;
@@ -377,9 +392,16 @@
         runActionBtnEl.style.opacity = disabled ? "0.7" : "1";
         runActionBtnEl.style.cursor = disabled ? "not-allowed" : "pointer";
       },
+      setActionsEnabled(value) {
+        actionsEnabledToggleEl.checked = Boolean(value);
+      },
+      isActionsEnabled() {
+        return Boolean(actionsEnabledToggleEl.checked);
+      },
       destroy() {
         adAccountInput.removeEventListener("change", emitContext);
         businessInput.removeEventListener("change", emitContext);
+        actionsEnabledToggleEl.removeEventListener("change", emitActionsPolicyToggle);
         tabsUi.destroy();
         tableUi.destroy();
         if (container.parentNode === root) {
@@ -898,7 +920,8 @@
   ];
   var STORAGE_KEYS = {
     selectedTab: "selected_tab",
-    selectedContext: "selected_context"
+    selectedContext: "selected_context",
+    actionsEnabled: "actions_enabled"
   };
   var mountStyles = () => {
     const style = document.createElement("style");
@@ -965,6 +988,7 @@
     const initialAdAccountId = authService.getCurrentAdAccountId();
     const storedContext = storage.get(STORAGE_KEYS.selectedContext, {});
     const storedTab = storage.get(STORAGE_KEYS.selectedTab, null);
+    const storedActionsEnabled = storage.get(STORAGE_KEYS.actionsEnabled, false);
     const loadModule = async (shell2, moduleId) => {
       const selectedModule = phase2Modules.find((item) => item.id === moduleId);
       if (!selectedModule) {
@@ -1004,7 +1028,7 @@
     };
     const executeControlledAction = async (shell2, actionId) => {
       const phase3Policy2 = {
-        phase3ActionsEnabled: false,
+        phase3ActionsEnabled: shell2.isActionsEnabled(),
         allowHighRiskActions: false,
         allowedActionIds: [
           "accounts.load_snapshot",
@@ -1062,7 +1086,13 @@
       },
       initialTabId: storedTab,
       onContextChange: (nextContext) => {
-        storage.set(STORAGE_KEYS.selectedContext, nextContext);
+        storage.set(STORAGE_KEYS.selectedContext, {
+          selectedAdAccountId: nextContext.selectedAdAccountId,
+          selectedBusinessId: nextContext.selectedBusinessId
+        });
+        if (typeof nextContext.phase3ActionsEnabled === "boolean") {
+          storage.set(STORAGE_KEYS.actionsEnabled, nextContext.phase3ActionsEnabled);
+        }
       },
       onSelect: (moduleId) => {
         storage.set(STORAGE_KEYS.selectedTab, moduleId);
@@ -1070,7 +1100,18 @@
       }
     });
     shell.appendLog(logger.info("Shell \u0441\u043C\u043E\u043D\u0442\u0438\u0440\u043E\u0432\u0430\u043D"));
-    const phase3Policy = { phase3ActionsEnabled: false, allowHighRiskActions: false, allowedActionIds: [] };
+    shell.setActionsEnabled(Boolean(storedActionsEnabled));
+    const phase3Policy = {
+      phase3ActionsEnabled: shell.isActionsEnabled(),
+      allowHighRiskActions: false,
+      allowedActionIds: [
+        "accounts.load_snapshot",
+        "billing.load_snapshot",
+        "businesses.load_snapshot",
+        "pages.load_snapshot",
+        "diagnostics.load_snapshot"
+      ]
+    };
     const registeredActions = actionsRegistry.list();
     const enabledActions = actionsRegistry.listEnabled();
     const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();

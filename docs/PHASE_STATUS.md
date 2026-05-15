@@ -191,6 +191,12 @@
 3. Добавлено визуальное состояние выполнения action (кнопка `Обработка...`, disable/enable).
 4. Unified logging и error-state сохранены для manual run сценария.
 
+## Phase 3 — feature-fix batch реализован (3 шага)
+
+1. Переключатель `Включить safe actions` теперь реально управляет policy (`phase3ActionsEnabled`) для manual run.
+2. Состояние переключателя сохраняется между сессиями (`storage: actions_enabled`).
+3. Startup policy summary синхронизирован с реальным состоянием toggle + allowlist safe actions.
+
 ## Phase 3 — расширенный batch реализован (5 шагов)
 
 1. В registry добавлены helper-методы `listReadonlyEnabled()` и `summarizeEnabledByRisk()`.

@@ -32,7 +32,8 @@ const phase2Modules = [
 
 const STORAGE_KEYS = {
   selectedTab: 'selected_tab',
-  selectedContext: 'selected_context'
+  selectedContext: 'selected_context',
+  actionsEnabled: 'actions_enabled'
 };
 
 const mountStyles = () => {
@@ -111,6 +112,7 @@ const createInstance = () => {
   const initialAdAccountId = authService.getCurrentAdAccountId();
   const storedContext = storage.get(STORAGE_KEYS.selectedContext, {});
   const storedTab = storage.get(STORAGE_KEYS.selectedTab, null);
+  const storedActionsEnabled = storage.get(STORAGE_KEYS.actionsEnabled, false);
 
   const loadModule = async (shell, moduleId) => {
     const selectedModule = phase2Modules.find((item) => item.id === moduleId);
@@ -157,7 +159,7 @@ const createInstance = () => {
 
   const executeControlledAction = async (shell, actionId) => {
     const phase3Policy = {
-      phase3ActionsEnabled: false,
+      phase3ActionsEnabled: shell.isActionsEnabled(),
       allowHighRiskActions: false,
       allowedActionIds: [
         'accounts.load_snapshot',
@@ -219,7 +221,13 @@ const createInstance = () => {
     },
     initialTabId: storedTab,
     onContextChange: (nextContext) => {
-      storage.set(STORAGE_KEYS.selectedContext, nextContext);
+      storage.set(STORAGE_KEYS.selectedContext, {
+        selectedAdAccountId: nextContext.selectedAdAccountId,
+        selectedBusinessId: nextContext.selectedBusinessId
+      });
+      if (typeof nextContext.phase3ActionsEnabled === 'boolean') {
+        storage.set(STORAGE_KEYS.actionsEnabled, nextContext.phase3ActionsEnabled);
+      }
     },
     onSelect: (moduleId) => {
       storage.set(STORAGE_KEYS.selectedTab, moduleId);
@@ -228,8 +236,19 @@ const createInstance = () => {
   });
 
   shell.appendLog(logger.info('Shell смонтирован'));
+  shell.setActionsEnabled(Boolean(storedActionsEnabled));
 
-  const phase3Policy = { phase3ActionsEnabled: false, allowHighRiskActions: false, allowedActionIds: [] };
+  const phase3Policy = {
+    phase3ActionsEnabled: shell.isActionsEnabled(),
+    allowHighRiskActions: false,
+    allowedActionIds: [
+      'accounts.load_snapshot',
+      'billing.load_snapshot',
+      'businesses.load_snapshot',
+      'pages.load_snapshot',
+      'diagnostics.load_snapshot'
+    ]
+  };
   const registeredActions = actionsRegistry.list();
   const enabledActions = actionsRegistry.listEnabled();
   const readonlyEnabledActions = actionsRegistry.listReadonlyEnabled();
